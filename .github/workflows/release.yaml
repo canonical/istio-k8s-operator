@@ -1,0 +1,14 @@
+name: Release Charm to Edge and Publish Libraries
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    uses: canonical/observability/.github/workflows/charm-release.yaml@main
+    secrets: inherit
+    with:
+      build-for-arm: true
