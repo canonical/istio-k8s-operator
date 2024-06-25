@@ -8,11 +8,6 @@ summary: A Juju charm to operate an Istio service mesh
 description: |
   istio-core deploys and manages the control plane of an Istio service mesh on Kubernetes, 
   enabling configuring and managing Istio through Juju.
-website: https://charmhub.io/istio-core
-source: https://github.com/canonical/istio-core-operator
-issues: https://github.com/canonical/istio-core-operator/issues
-# TODO: docs page
-# docs: https://...
 
 assumes:
   - k8s-api
