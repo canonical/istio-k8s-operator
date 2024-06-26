@@ -9,6 +9,34 @@ description: |
   istio-core deploys and manages the control plane of an Istio service mesh on Kubernetes, 
   enabling configuring and managing Istio through Juju.
 
+config:
+  options:
+    ambient:
+      type: boolean
+      default: true
+      description: >
+        Enable Istio's ambient mode.  See https://istio.io/latest/docs/ambient/overview/ for details.
+    cni-bin-dir:
+      type: string
+      default: '/var/snap/microk8s/current/opt/cni/bin'
+      description: >
+        Path to CNI binaries. This path depends on the Kubernetes installation, for example:
+        * microk8s (default): /var/snap/microk8s/current/opt/cni/bin
+        * many other Kubernetes installations: /opt/cni/bin
+        Refer to https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
+        and https://istio.io/latest/docs/ambient/install/platform-prerequisites/
+        for information to find out the correct path for your Kubernetes installation.
+    cni-conf-dir:
+      type: string
+      default: '/var/snap/microk8s/current/args/cni-network'
+      description: >
+        Path to conflist files describing the CNI configuration. This path depends on the Kubernetes installation, for example:
+        * microk8s (default): /var/snap/microk8s/current/args/cni-network
+        * many other Kubernetes installations: /etc/cni/net.d
+        Refer to https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
+        and https://istio.io/latest/docs/ambient/install/platform-prerequisites/
+        for information to find out the correct path for your Kubernetes installation.
+
 assumes:
   - k8s-api
 
@@ -29,3 +57,12 @@ bases:
     - name: ubuntu
       channel: "22.04"
       architectures: ["arm64"]
+
+parts:
+  charm:
+    plugin: charm
+    build-packages: [git]
+  istioctl:
+    plugin: dump
+    source: https://github.com/istio/istio/releases/download/1.22.0/istioctl-1.22.0-linux-amd64.tar.gz
+    source-type: tar

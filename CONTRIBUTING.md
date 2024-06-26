@@ -40,3 +40,12 @@ Build the charm in this git repository using:
 ```shell
 charmcraft pack
 ```
+
+## Updating the Gateway API CRD manifests
+
+The [Gateway API manifests]() are [vendored](/src/manifests/gateway-apis-crds.yaml) into this charm. We use the most recent stable release.  To update these manifests, run:
+
+```bash
+RELEASE=v1.1.0
+wget https://github.com/kubernetes-sigs/gateway-api/releases/download/${RELEASE}/standard-install.yaml -O ./src/manifests/gateway-apis-crds.yaml
+```
