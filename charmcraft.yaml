@@ -1,0 +1,31 @@
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: istio-k8s
+type: charm
+title: Istio
+summary: A Juju charm to operate an Istio service mesh
+description: |
+  istio-core deploys and manages the control plane of an Istio service mesh on Kubernetes, 
+  enabling configuring and managing Istio through Juju.
+
+assumes:
+  - k8s-api
+
+bases:
+  - build-on:
+    - name: ubuntu
+      channel: "22.04"
+      architectures: ["amd64"]
+    run-on:
+    - name: ubuntu
+      channel: "22.04"
+      architectures: ["amd64"]
+  - build-on:
+    - name: ubuntu
+      channel: "22.04"
+      architectures: ["arm64"]
+    run-on:
+    - name: ubuntu
+      channel: "22.04"
+      architectures: ["arm64"]
