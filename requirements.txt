@@ -1,2 +1,5 @@
+# TODO: If we keep using KubernetesResourceHandler, should we fork or vendor it instead of using
+#  this dependency?
+charmed-kubeflow-chisme == 0.3.0
 ops ~= 2.5
 
