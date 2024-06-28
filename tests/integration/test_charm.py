@@ -7,6 +7,7 @@ import dataclasses
 import logging
 from collections import namedtuple
 from pathlib import Path
+from typing import List
 
 import pytest
 import yaml
@@ -51,6 +52,13 @@ async def test_ambient_mode_enabled(ops_test: OpsTest):
 
     is_ztunnel_up_result = is_ztunnel_up(namespace=ops_test.model.name)
     assert is_ztunnel_up_result.success, is_ztunnel_up_result.message
+
+
+@pytest.mark.abort_on_fail
+async def test_gateway_api_crds(ops_test: OpsTest):
+    """Assert that the Gateway-API CRDs are deployed."""
+    do_gateway_api_crds_exist_result = do_gateway_api_crds_exist()
+    assert do_gateway_api_crds_exist_result.success, do_gateway_api_crds_exist_result.message
 
 
 async def test_removal(ops_test: OpsTest):
@@ -106,16 +114,31 @@ def is_deployment_ready(resource: Deployment) -> BoolTestResult:
 
 
 def do_istio_crds_exist() -> BoolTestResult:
-    """Assert that the Istio CRDs are deployed by picking a subset and confirming they exist."""
+    """Assert that the Istio CRDs are deployed by confirming a sample exists."""
+    return do_crds_exist(crd_names=["authorizationpolicies.security.istio.io"])
+
+
+def do_gateway_api_crds_exist() -> BoolTestResult:
+    """Assert that the Gateway-API CRDs are deployed by confirming a sample exists."""
+    expected_crds = [
+        "gateways.gateway.networking.k8s.io",
+        "httproutes.gateway.networking.k8s.io",
+    ]
+    return do_crds_exist(crd_names=expected_crds)
+
+
+def do_crds_exist(crd_names: List[str]) -> BoolTestResult:
+    """Assert that all CRDs of the given names exist."""
     lc = Client()
-    try:
-        lc.get(CustomResourceDefinition, name="authorizationpolicies.security.istio.io")
-    except ApiError as e:
-        if e.status.code == 404:
-            return BoolTestResult(
-                success=False, message="CRD authorizationpolicies.security.istio.io not found"
-            )
-        raise e
+    for name in crd_names:
+        try:
+            lc.get(CustomResourceDefinition, name=name)
+        except ApiError as e:
+            if e.status.code == 404:
+                return BoolTestResult(
+                    success=False, message=f"CRD {name} not found"
+                )
+            raise e
     return BoolTestResult(success=True)
 
 

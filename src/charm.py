@@ -32,12 +32,6 @@ logger = logging.getLogger(__name__)
 source_path = Path(__file__).parent
 
 KUBERNETES_RESOURCE_SPECS = {
-    "crds": {
-        "manifest_templates": [
-            source_path / "manifests" / "crds.yaml",
-        ],
-        "resource_types": {CustomResourceDefinition},
-    },
     "control-plane": {
         "manifest_templates": [source_path / "manifests" / "control-plane.yaml"],
         "resource_types": {
@@ -56,6 +50,16 @@ KUBERNETES_RESOURCE_SPECS = {
             ValidatingWebhookConfiguration,
         },
     },
+    "crds": {
+        "manifest_templates": [
+            source_path / "manifests" / "crds.yaml",
+        ],
+        "resource_types": {CustomResourceDefinition},
+    },
+    "gateway-apis": {
+        "manifest_templates": [source_path / "manifests" / "gateway-apis.yaml"],
+        "resource_types": {CustomResourceDefinition},
+    }
 }
 
 
