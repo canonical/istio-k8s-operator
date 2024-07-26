@@ -1,2 +1,4 @@
+# TODO: Pin this to a release once the repo has them
+lightkube-extensions @ git+https://github.com/canonical/lightkube-extensions.git@main
 ops ~= 2.5
-
+pydantic
