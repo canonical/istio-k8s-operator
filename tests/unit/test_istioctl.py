@@ -5,6 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 import yaml
+from jinja2 import Environment, FileSystemLoader
+
 from istioctl import (
     Istioctl,
     IstioctlError,
@@ -12,7 +14,6 @@ from istioctl import (
     get_control_plane_version,
     settings_dict_to_args,
 )
-from jinja2 import Environment, FileSystemLoader
 
 ISTIOCTL_BINARY = "not_really_istioctl"
 NAMESPACE = "placeholder-namespace"

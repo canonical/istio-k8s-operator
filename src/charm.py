@@ -9,8 +9,6 @@ import logging
 from pathlib import Path
 
 import ops
-from config import CharmConfig
-from istioctl import Istioctl
 
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
 from lightkube import Client, codecs  # type: ignore
@@ -30,6 +28,9 @@ from lightkube.resources.rbac_authorization_v1 import (
     RoleBinding,
 )
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
+
+from config import CharmConfig
+from istioctl import Istioctl
 
 LOGGER = logging.getLogger(__name__)
 
