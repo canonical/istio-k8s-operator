@@ -8,9 +8,10 @@ from unittest.mock import MagicMock, patch
 import ops
 import ops.testing
 import pytest
-from charm import IstioCoreCharm
 from lightkube_extensions.batch import KubernetesResourceManager
 from ops.model import ActiveStatus
+
+from charm import IstioCoreCharm
 
 
 class MockKubernetesResourceManager(KubernetesResourceManager):

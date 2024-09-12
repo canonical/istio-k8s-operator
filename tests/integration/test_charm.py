@@ -15,6 +15,7 @@ from lightkube import ApiError, Client
 from lightkube.models.core_v1 import EnvVar
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.apps_v1 import DaemonSet, Deployment
+from lightkube.resources.core_v1 import ConfigMap
 from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
@@ -151,7 +152,6 @@ def is_ambient_mode_enabled(namespace: str) -> BoolTestResult:
 
     case = namedtuple("ambient_test_case", ["name", "key", "value", "resource_type"])
     cases = [
-        case(name="istio-cni-node", key="AMBIENT_ENABLED", value="true", resource_type=DaemonSet),
         case(name="ztunnel", key="ISTIO_META_ENABLE_HBONE", value="true", resource_type=DaemonSet),
         case(name="istiod", key="PILOT_ENABLE_AMBIENT", value="true", resource_type=Deployment),
     ]
@@ -165,6 +165,15 @@ def is_ambient_mode_enabled(namespace: str) -> BoolTestResult:
                 success=False,
                 message=f"Ambient mode is not enabled - {case.name}'s {case.key} env var is not set to {case.value}",
             )
+
+    # Assert istio-cni is configured for ambient mode
+    cm = lc.get(ConfigMap, "istio-cni-config", namespace=namespace)
+    cni_ambient_enabled = cm.data.get("AMBIENT_ENABLED")
+    if cni_ambient_enabled != "true":
+        return BoolTestResult(
+            success=False,
+            message=f"Ambient mode is not enabled - istio-cni-node's ConfigMap does not have AMBIENT_ENABLED=true, found 'AMBIENT_ENABLED={cni_ambient_enabled}",
+        )
 
     return BoolTestResult(success=True)
 
