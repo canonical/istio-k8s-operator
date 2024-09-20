@@ -7,11 +7,13 @@
 
 import logging
 from pathlib import Path
+from typing import List
 
 import ops
 
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
 from lightkube import Client, codecs  # type: ignore
+from lightkube.codecs import AnyResource
 from lightkube.resources.admissionregistration_v1 import (
     MutatingWebhookConfiguration,
     ValidatingWebhookConfiguration,
@@ -119,12 +121,11 @@ class IstioCoreCharm(ops.CharmBase):
         """Reconcile the control plane resources."""
         ictl = self._get_istioctl()
         manifests = ictl.manifest_generate(components=CONTROL_PLANE_COMPONENTS)
+        resources = codecs.load_all_yaml(manifests, create_resources_for_crds=True)
 
         # Modify the CNI ConfigMap to add AMBIENT_TPROXY_REDIRECTION
         # TODO: Remove after upgrading to istio 1.24
-        modified_manifests = self._modify_istio_cni_configmap(manifests)
-
-        resources = codecs.load_all_yaml(modified_manifests, create_resources_for_crds=True)
+        resources = self._modify_istio_cni_configmap(resources)
         krm = self._get_resource_manager(CONTROL_PLANE_LABEL)
         # TODO: A validating webhook raises a conflict if force=False.  Why?
         krm.reconcile(resources, force=True)  # pyright: ignore
@@ -223,12 +224,11 @@ class IstioCoreCharm(ops.CharmBase):
     # This is a hacky way to get istio CNI to use REDIRECTION instead of TPROXY
     # TODO: Remove this once we upgrade to istio 1.24 as REDIRECTION will be used by default
     # Istioctl doesn't yet support adding env vars directly to the CNI component
-    def _modify_istio_cni_configmap(self, manifests: str) -> str:
+    def _modify_istio_cni_configmap(self, resources: List[AnyResource]) -> str:
         """Modify the Istio CNI ConfigMap to include the AMBIENT_TPROXY_REDIRECTION key."""
         key = "AMBIENT_TPROXY_REDIRECTION"
         value = "false"
 
-        resources = list(codecs.load_all_yaml(manifests))
         # Iterate through the resources to find the istio-cni-config ConfigMap
         for resource in resources:
             if (
@@ -237,7 +237,7 @@ class IstioCoreCharm(ops.CharmBase):
             ):
                 resource.data[key] = value  # pyright: ignore
         # Convert the modified resources back to a YAML string
-        return codecs.dump_all_yaml(resources)  # pyright: ignore
+        return resources  # pyright: ignore
 
 
 if __name__ == "__main__":
