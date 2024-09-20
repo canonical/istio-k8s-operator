@@ -222,7 +222,7 @@ class IstioCoreCharm(ops.CharmBase):
 
     # This is a hacky way to get istio CNI to use REDIRECTION instead of TPROXY
     # TODO: Remove this once we upgrade to istio 1.24 as REDIRECTION will be used by default
-    # Istioctl doesn't yet support adding env vars directly to the CNI component https://github.com/istio/istio/blob/master/manifests/charts/istio-cni/values.yaml
+    # Istioctl doesn't yet support adding env vars directly to the CNI component
     def _patch_istio_cni_daemonset(self):
         """Patch the 'istio-cni-node' DaemonSet to add or update the 'AMBIENT_TPROXY_REDIRECTION' key."""
         daemonset_name = "istio-cni-node"
