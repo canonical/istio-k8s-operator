@@ -33,10 +33,8 @@ class TestCharm:
     @patch.object(IstioCoreCharm, "_reconcile_gateway_api_crds")
     @patch.object(IstioCoreCharm, "_reconcile_istio_crds")
     @patch.object(IstioCoreCharm, "_reconcile_control_plane")
-    @patch.object(IstioCoreCharm, "_patch_istio_cni_daemonset")
     def test_charm_begins_active(
         self,
-        _patch_istio_cni_daemonset,
         _reconcile_control_plane,
         _reconcile_istio_crds,
         _reconcile_gateway_api_crds,

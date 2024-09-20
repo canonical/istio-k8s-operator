@@ -6,15 +6,12 @@
 """A Juju charm for managing the Istio service mesh control plane."""
 
 import logging
-import time
 from pathlib import Path
 
 import ops
 
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
 from lightkube import Client, codecs  # type: ignore
-from lightkube.core.exceptions import ApiError
-from lightkube.models.core_v1 import EnvVar
 from lightkube.resources.admissionregistration_v1 import (
     MutatingWebhookConfiguration,
     ValidatingWebhookConfiguration,
@@ -88,8 +85,6 @@ class IstioCoreCharm(ops.CharmBase):
         self._reconcile_gateway_api_crds()
         self._reconcile_istio_crds()
         self._reconcile_control_plane()
-        # TODO: Remove after upgrading to istio 1.24
-        self._patch_istio_cni_daemonset()
         # TODO: check if the deployment was successful before setting charm to active
         self.unit.status = ops.ActiveStatus()
 
@@ -124,7 +119,12 @@ class IstioCoreCharm(ops.CharmBase):
         """Reconcile the control plane resources."""
         ictl = self._get_istioctl()
         manifests = ictl.manifest_generate(components=CONTROL_PLANE_COMPONENTS)
-        resources = codecs.load_all_yaml(manifests, create_resources_for_crds=True)
+
+        # Modify the CNI ConfigMap to add AMBIENT_TPROXY_REDIRECTION
+        # TODO: Remove after upgrading to istio 1.24
+        modified_manifests = self._modify_istio_cni_configmap(manifests)
+
+        resources = codecs.load_all_yaml(modified_manifests, create_resources_for_crds=True)
         krm = self._get_resource_manager(CONTROL_PLANE_LABEL)
         # TODO: A validating webhook raises a conflict if force=False.  Why?
         krm.reconcile(resources, force=True)  # pyright: ignore
@@ -223,35 +223,21 @@ class IstioCoreCharm(ops.CharmBase):
     # This is a hacky way to get istio CNI to use REDIRECTION instead of TPROXY
     # TODO: Remove this once we upgrade to istio 1.24 as REDIRECTION will be used by default
     # Istioctl doesn't yet support adding env vars directly to the CNI component
-    def _patch_istio_cni_daemonset(self):
-        """Patch the 'istio-cni-node' DaemonSet to add or update the 'AMBIENT_TPROXY_REDIRECTION' key."""
-        daemonset_name = "istio-cni-node"
+    def _modify_istio_cni_configmap(self, manifests: str) -> str:
+        """Modify the Istio CNI ConfigMap to include the AMBIENT_TPROXY_REDIRECTION key."""
         key = "AMBIENT_TPROXY_REDIRECTION"
         value = "false"
-        check_interval = 10
-        client = self.lightkube_client
 
-        # Iterating for 100 Seconds until we find the CNI DaemonSet
-        for _ in range(10):
-            try:
-                ds = client.get(DaemonSet, daemonset_name, namespace=self.model.name)
-                # Modify the environment variable for container "istio-cni"
-                for container in ds.spec.template.spec.containers:  # pyright: ignore
-                    if container.name == "install-cni":
-                        updated_env = False
-                        for env_var in container.env:  # pyright: ignore
-                            if env_var.name == key:
-                                env_var.value = value
-                                updated_env = True
-                        if not updated_env:
-                            container.env.append(EnvVar(name=key, value=value))  # pyright: ignore
-
-                client.patch(DaemonSet, daemonset_name, obj=ds, namespace=self.model.name)
-                return
-            except ApiError:
-                LOGGER.warning("DaemonSet not found, retrying...")
-                time.sleep(check_interval)
-        raise RuntimeError(f"Failed to patch DaemonSet '{daemonset_name}'.")
+        resources = list(codecs.load_all_yaml(manifests))
+        # Iterate through the resources to find the istio-cni-config ConfigMap
+        for resource in resources:
+            if (
+                resource.kind == "ConfigMap"
+                and resource.metadata.name == "istio-cni-config"  # pyright: ignore
+            ):
+                resource.data[key] = value  # pyright: ignore
+        # Convert the modified resources back to a YAML string
+        return codecs.dump_all_yaml(resources)  # pyright: ignore
 
 
 if __name__ == "__main__":
