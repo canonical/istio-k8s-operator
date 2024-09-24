@@ -9,3 +9,4 @@ class CharmConfig(BaseModel):
     ambient: bool
     cni_bin_dir: str = Field(alias="cni-bin-dir")
     cni_conf_dir: str = Field(alias="cni-conf-dir")
+    auto_allow_waypoint_policy: bool = Field(alias="auto-allow-waypoint-policy")

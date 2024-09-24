@@ -16,6 +16,19 @@ config:
       default: true
       description: >
         Enable Istio's ambient mode.  See https://istio.io/latest/docs/ambient/overview/ for details.
+    auto-allow-waypoint-policy:
+      type: boolean
+      default: true
+      description: >
+        For workloads on an ambient mesh with traffic routed through a waypoint, that traffic passing through the 
+        waypoint to the workload can be controlled by L4 authorization policies like any other traffic.  This generally
+        means that, to allow traffic from a waypoint to a workload, users must create L4 authorization policies between
+        the waypoint and the workload.  
+        If this option is set to true, Istio will create synthetic authorization policies allowing waypoints to 
+        communicate with their workloads automatically.  
+        If this option is set to false, users must create L4 authorization policies between waypoints and the workloads.
+        See [PILOT_AUTO_ALLOW_WAYPOINT_POLICY]https://istio.io/latest/docs/reference/commands/pilot-discovery/#envvars
+        for more detail.
     cni-bin-dir:
       type: string
       default: '/var/snap/microk8s/current/opt/cni/bin'

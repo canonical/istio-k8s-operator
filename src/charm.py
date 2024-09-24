@@ -214,6 +214,9 @@ class IstioCoreCharm(ops.CharmBase):
             setting_overrides["components.ztunnel.enabled"] = "true"
             setting_overrides["values.profile"] = "ambient"
 
+        if self.parsed_config["auto-allow-waypoint-policy"]:
+            setting_overrides["values.pilot.env.PILOT_AUTO_ALLOW_WAYPOINT_POLICY"] = "true"
+
         return Istioctl(
             istioctl_path="./istioctl",
             namespace=self.model.name,
