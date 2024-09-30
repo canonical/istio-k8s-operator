@@ -71,6 +71,16 @@ bases:
       channel: "22.04"
       architectures: ["arm64"]
 
+
+
+containers:
+  metrics-proxy:
+    resource: metrics-proxy-image
+
+provides:
+  metrics-endpoint:
+    interface: prometheus_scrape
+
 parts:
   charm:
     plugin: charm
@@ -80,3 +90,10 @@ parts:
     plugin: dump
     source: https://github.com/istio/istio/releases/download/1.23.1/istioctl-1.23.1-linux-amd64.tar.gz
     source-type: tar
+
+
+resources:
+  metrics-proxy-image:
+    type: oci-image
+    description: Metrics Proxy OCI image
+    upstream-source: localhost:32000/metrics-proxy:0.1
