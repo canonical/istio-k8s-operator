@@ -100,7 +100,7 @@ class IstioCoreCharm(ops.CharmBase):
         pebble_layer = Layer(
             {
                 "summary": "Metrics Broadcast Proxy Layer",
-                "description": "Pebble layer for Flask-based broadcast proxy",
+                "description": "Pebble layer for the metrics broadcast proxy",
                 "services": {
                     "metrics-proxy": {
                         "override": "replace",
