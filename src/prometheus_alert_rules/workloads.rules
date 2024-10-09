@@ -1,0 +1,27 @@
+groups:
+  - name: IstioWorkloadsRules
+    rules:
+      - alert: HighPilotProxyQueueTime
+        expr: rate(pilot_proxy_queue_time_sum[5m]) / rate(pilot_proxy_queue_time_count[5m]) > 1
+        for: 5m
+        labels:
+            severity: warning
+        annotations:
+            summary: "High Pilot Proxy Queue Time"
+            description: "The average pilot proxy queue time has exceeded 1 second."
+      - alert: HighXDSPushLatency
+        expr: (sum(rate(pilot_xds_push_time_sum[5m])) / sum(rate(pilot_xds_push_time_count[5m]))) > 0.5
+        for: 5m
+        labels:
+            severity: warning
+        annotations:
+            summary: "High XDS Push Latency"
+            description: "The average latency for XDS pushes has exceeded 0.5 seconds."
+    - alert: UnexpectedLowXDSPushCount
+        expr: rate(pilot_xds_pushes{type="wds"}[5m]) < 1
+        for: 5m
+        labels:
+            severity: warning
+        annotations:
+            summary: "Unexpected Low Number of XDS Pushes"
+            description: "The rate of XDS pushes is unexpectedly low."
