@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 APP_NAME = METADATA["name"]
+resources = {
+    "metrics-proxy-image": METADATA["resources"]["metrics-proxy-image"]["upstream-source"],
+}
 
 
 @pytest.mark.abort_on_fail
@@ -29,7 +32,9 @@ async def test_build_and_deploy(ops_test: OpsTest, istio_core_charm):
     """Build the charm-under-test and deploy it."""
     # Deploy the charm and wait for active/idle status
     await asyncio.gather(
-        ops_test.model.deploy(istio_core_charm, application_name=APP_NAME, trust=True),
+        ops_test.model.deploy(
+            istio_core_charm, resources=resources, application_name=APP_NAME, trust=True
+        ),
         ops_test.model.wait_for_idle(
             apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=1000
         ),
