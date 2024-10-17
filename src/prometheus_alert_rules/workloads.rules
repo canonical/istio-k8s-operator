@@ -17,7 +17,7 @@ groups:
         annotations:
             summary: "High XDS Push Latency"
             description: "The average latency for XDS pushes has exceeded 0.5 seconds."
-    - alert: UnexpectedLowXDSPushCount
+      - alert: UnexpectedLowXDSPushCount
         expr: rate(pilot_xds_pushes{type="wds"}[5m]) < 1
         for: 5m
         labels:

@@ -96,4 +96,6 @@ resources:
   metrics-proxy-image:
     type: oci-image
     description: Metrics Proxy OCI image
-    upstream-source: localhost:32000/metrics-proxy:0.1
+    # TODO: change below to point at the correct image once metrics-proxy rock is onboarded
+    # see: https://github.com/canonical/oci-factory/issues/268
+    upstream-source: docker.io/ibraaoad/metrics-proxy:v0.1.0

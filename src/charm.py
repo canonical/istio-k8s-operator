@@ -7,7 +7,7 @@
 
 import logging
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 import ops
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
@@ -64,8 +64,6 @@ GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml
 GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
 GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 
-METRICS_LABELS = {"charms.canonical.com/istio.io.metrics": "aggregated"}
-
 
 class IstioCoreCharm(ops.CharmBase):
     """Charm for managing the Istio service mesh control plane."""
@@ -78,26 +76,26 @@ class IstioCoreCharm(ops.CharmBase):
             ISTIO_CRDS_LABEL: self._get_crds_kubernetes_resource_manager,
             GATEWAY_API_CRDS_LABEL: self._get_gateway_apis_kubernetes_resource_manager,
         }
-        self._metrics_labels = ",".join(
-            [f"{key}={value}" for key, value in METRICS_LABELS.items()]
-        )
+        self.telemetry_labels = {
+            f"charms.canonical.com/{self.model.name}.{self.app.name}.telemetry": "aggregated"
+        }
         self._lightkube_field_manager: str = self.app.name
         # Configure Observability
         self._scraping = MetricsEndpointProvider(
             self,
-            relation_name="metrics-endpoint",
             jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
         )
 
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
+        self.framework.observe(self.on.metrics_proxy_pebble_ready, self._reconcile)
 
-    def _setup_pebble_service(self):
+    def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
-        container = self.unit.get_container("metrics-proxy")
-        if not container.can_connect():
+        proxy_container = self.unit.get_container("metrics-proxy")
+        if not proxy_container.can_connect():
             return
-        pebble_layer = Layer(
+        proxy_layer = Layer(
             {
                 "summary": "Metrics Broadcast Proxy Layer",
                 "description": "Pebble layer for the metrics broadcast proxy",
@@ -105,19 +103,19 @@ class IstioCoreCharm(ops.CharmBase):
                     "metrics-proxy": {
                         "override": "replace",
                         "summary": "Metrics Broadcast Proxy",
-                        "command": f"metrics-proxy --labels {self._metrics_labels}",
+                        "command": f"metrics-proxy --labels {self.format_labels(self.telemetry_labels)}",
                         "startup": "enabled",
                     }
                 },
             }
         )
 
-        container.add_layer("metrics-proxy", pebble_layer, combine=True)
+        proxy_container.add_layer("metrics-proxy", proxy_layer, combine=True)
 
         try:
-            container.replan()
+            proxy_container.replan()
         except ChangeError as e:
-            LOGGER.error(f"Error while replanning container: {e}")
+            LOGGER.error(f"Error while replanning proxy container: {e}")
 
     def _reconcile(self, _event: ops.ConfigChangedEvent):
         """Reconcile the entire state of the charm."""
@@ -126,7 +124,7 @@ class IstioCoreCharm(ops.CharmBase):
         self._reconcile_control_plane()
 
         # Ensure the Pebble service is up-to-date
-        self._setup_pebble_service()
+        self._setup_proxy_pebble_service()
 
         # TODO: check if the deployment was successful before setting charm to active
         self.unit.status = ops.ActiveStatus()
@@ -168,7 +166,7 @@ class IstioCoreCharm(ops.CharmBase):
         # TODO: Remove after upgrading to istio 1.24
         resources = self._modify_istio_cni_configmap(resources)
 
-        resources = self._modify_pod_labels(resources)
+        resources = self._add_metrics_labels(resources)
 
         krm = self._get_resource_manager(CONTROL_PLANE_LABEL)
         # TODO: A validating webhook raises a conflict if force=False.  Why?
@@ -286,7 +284,7 @@ class IstioCoreCharm(ops.CharmBase):
         # Convert the modified resources back to a YAML string
         return resources  # pyright: ignore
 
-    def _modify_pod_labels(self, resources: List[AnyResource]) -> List[AnyResource]:
+    def _add_metrics_labels(self, resources: List[AnyResource]) -> List[AnyResource]:
         """Append extra labels to the ztunnel, istio-cni-node, and istiod pods based on METRICS_LABELS."""
         for resource in resources:
             if resource.kind in [
@@ -297,10 +295,15 @@ class IstioCoreCharm(ops.CharmBase):
                 "istio-cni-node",
                 "istiod",
             ]:
-                for key, value in METRICS_LABELS.items():
+                for key, value in self.telemetry_labels.items():
                     resource.spec.template.metadata.labels[key] = value  # pyright: ignore
 
         return resources
+
+    @staticmethod
+    def format_labels(label_dict: Dict[str, str]) -> str:
+        """Format a dictionary into a comma-separated string of key=value pairs."""
+        return ",".join(f"{key}={value}" for key, value in label_dict.items())
 
 
 if __name__ == "__main__":
