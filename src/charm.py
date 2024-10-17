@@ -7,9 +7,10 @@
 
 import logging
 from pathlib import Path
-from typing import List
+from typing import Dict, List
 
 import ops
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
 from lightkube import Client, codecs  # type: ignore
@@ -30,6 +31,7 @@ from lightkube.resources.rbac_authorization_v1 import (
     RoleBinding,
 )
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
+from ops.pebble import ChangeError, Layer
 
 from config import CharmConfig
 from istioctl import Istioctl
@@ -74,19 +76,56 @@ class IstioCoreCharm(ops.CharmBase):
             ISTIO_CRDS_LABEL: self._get_crds_kubernetes_resource_manager,
             GATEWAY_API_CRDS_LABEL: self._get_gateway_apis_kubernetes_resource_manager,
         }
-
+        self.telemetry_labels = {
+            f"charms.canonical.com/{self.model.name}.{self.app.name}.telemetry": "aggregated"
+        }
         self._lightkube_field_manager: str = self.app.name
+        # Configure Observability
+        self._scraping = MetricsEndpointProvider(
+            self,
+            jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
+        )
 
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
+        self.framework.observe(self.on.metrics_proxy_pebble_ready, self._reconcile)
 
-    # Event handlers
+    def _setup_proxy_pebble_service(self):
+        """Define and start the metrics broadcast proxy Pebble service."""
+        proxy_container = self.unit.get_container("metrics-proxy")
+        if not proxy_container.can_connect():
+            return
+        proxy_layer = Layer(
+            {
+                "summary": "Metrics Broadcast Proxy Layer",
+                "description": "Pebble layer for the metrics broadcast proxy",
+                "services": {
+                    "metrics-proxy": {
+                        "override": "replace",
+                        "summary": "Metrics Broadcast Proxy",
+                        "command": f"metrics-proxy --labels {self.format_labels(self.telemetry_labels)}",
+                        "startup": "enabled",
+                    }
+                },
+            }
+        )
+
+        proxy_container.add_layer("metrics-proxy", proxy_layer, combine=True)
+
+        try:
+            proxy_container.replan()
+        except ChangeError as e:
+            LOGGER.error(f"Error while replanning proxy container: {e}")
 
     def _reconcile(self, _event: ops.ConfigChangedEvent):
         """Reconcile the entire state of the charm."""
         self._reconcile_gateway_api_crds()
         self._reconcile_istio_crds()
         self._reconcile_control_plane()
+
+        # Ensure the Pebble service is up-to-date
+        self._setup_proxy_pebble_service()
+
         # TODO: check if the deployment was successful before setting charm to active
         self.unit.status = ops.ActiveStatus()
 
@@ -126,6 +165,9 @@ class IstioCoreCharm(ops.CharmBase):
         # Modify the CNI ConfigMap to add AMBIENT_TPROXY_REDIRECTION
         # TODO: Remove after upgrading to istio 1.24
         resources = self._modify_istio_cni_configmap(resources)
+
+        resources = self._add_metrics_labels(resources)
+
         krm = self._get_resource_manager(CONTROL_PLANE_LABEL)
         # TODO: A validating webhook raises a conflict if force=False.  Why?
         krm.reconcile(resources, force=True)  # pyright: ignore
@@ -227,7 +269,7 @@ class IstioCoreCharm(ops.CharmBase):
     # This is a hacky way to get istio CNI to use REDIRECTION instead of TPROXY
     # TODO: Remove this once we upgrade to istio 1.24 as REDIRECTION will be used by default
     # Istioctl doesn't yet support adding env vars directly to the CNI component
-    def _modify_istio_cni_configmap(self, resources: List[AnyResource]) -> str:
+    def _modify_istio_cni_configmap(self, resources: List[AnyResource]) -> List[AnyResource]:
         """Modify the Istio CNI ConfigMap to include the AMBIENT_TPROXY_REDIRECTION key."""
         key = "AMBIENT_TPROXY_REDIRECTION"
         value = "false"
@@ -241,6 +283,27 @@ class IstioCoreCharm(ops.CharmBase):
                 resource.data[key] = value  # pyright: ignore
         # Convert the modified resources back to a YAML string
         return resources  # pyright: ignore
+
+    def _add_metrics_labels(self, resources: List[AnyResource]) -> List[AnyResource]:
+        """Append extra labels to the ztunnel, istio-cni-node, and istiod pods based on METRICS_LABELS."""
+        for resource in resources:
+            if resource.kind in [
+                "DaemonSet",
+                "Deployment",
+            ] and resource.metadata.name in [  # pyright: ignore
+                "ztunnel",
+                "istio-cni-node",
+                "istiod",
+            ]:
+                for key, value in self.telemetry_labels.items():
+                    resource.spec.template.metadata.labels[key] = value  # pyright: ignore
+
+        return resources
+
+    @staticmethod
+    def format_labels(label_dict: Dict[str, str]) -> str:
+        """Format a dictionary into a comma-separated string of key=value pairs."""
+        return ",".join(f"{key}={value}" for key, value in label_dict.items())
 
 
 if __name__ == "__main__":

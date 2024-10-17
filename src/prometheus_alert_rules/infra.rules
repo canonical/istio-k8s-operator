@@ -1,0 +1,51 @@
+groups:
+  - name: IstioInfraRules
+    rules:
+      - alert: ZTunnelConnected
+        expr: ztunnel_connected < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "ZTunnel Connected Alert"
+          description: '[Critical]: ztunnel is missing, likely other monitors are misleading, check installation logs'
+      - alert: IstioCniInstallNotReady
+        expr: istio_cni_install_ready < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Istio CNI Installation Not Ready Alert"
+          description: '[Critical]: ingress CNI is missing, likely other monitors are misleading, check installation logs'
+      - alert: CitadelServerRootCertExpiry
+        expr: citadel_server_root_cert_expiry_seconds < 2592000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Citadel Server Root Certificate Expiry"
+          description: "The Citadel server root certificate will expire in less than 30 days."
+      - alert: PilotConflictInboundListener
+        expr: pilot_conflict_inbound_listener > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pilot Inbound Listener Conflicts"
+          description: "There are conflicts in the inbound listeners."
+      - alert: PilotEndpointNotReady
+        expr: pilot_endpoint_not_ready > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pilot Endpoint Not Ready"
+          description: "Istio Pilot endpoints are not ready."
+      - alert: PilotServicesCountLow
+        expr: pilot_services < 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No Services in Pilot"
+          description: "There are no istio services registered in Pilot."

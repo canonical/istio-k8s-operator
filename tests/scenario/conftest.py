@@ -15,7 +15,8 @@ def istio_core_charm():
     with patch.object(IstioCoreCharm, "_reconcile_control_plane"):
         with patch.object(IstioCoreCharm, "_reconcile_istio_crds"):
             with patch.object(IstioCoreCharm, "_reconcile_gateway_api_crds"):
-                yield IstioCoreCharm
+                with patch.object(IstioCoreCharm, "_setup_proxy_pebble_service"):
+                    yield IstioCoreCharm
 
 
 @pytest.fixture()
