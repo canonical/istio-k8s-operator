@@ -23,6 +23,7 @@ from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.apps_v1 import DaemonSet, Deployment
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import ConfigMap, Service, ServiceAccount
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from lightkube.resources.policy_v1 import PodDisruptionBudget
 from lightkube.resources.rbac_authorization_v1 import (
     ClusterRole,
@@ -80,11 +81,13 @@ class IstioCoreCharm(ops.CharmBase):
             f"charms.canonical.com/{self.model.name}.{self.app.name}.telemetry": "aggregated"
         }
         self._lightkube_field_manager: str = self.app.name
+
         # Configure Observability
         self._scraping = MetricsEndpointProvider(
             self,
             jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
         )
+        self.grafana_dashboards = GrafanaDashboardProvider(self)
 
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
