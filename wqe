@@ -1,0 +1,5 @@
+Offer                            Application   Charm             Rev  Connected  Endpoint              Interface                Role
+alertmanager-karma-dashboard     alertmanager  alertmanager-k8s  138  0/0        karma-dashboard       karma_dashboard          provider
+grafana-dashboards               grafana       grafana-k8s       121  0/0        grafana-dashboard     grafana_dashboard        requirer
+loki-logging                     loki          loki-k8s          174  0/0        logging               loki_push_api            provider
+prometheus-receive-remote-write  prometheus    prometheus-k8s    214  0/0        receive-remote-write  prometheus_remote_write  provider

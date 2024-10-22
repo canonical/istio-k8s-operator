@@ -85,7 +85,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(istio_build{component=\"pilot\"}) by (tag)",
           "legendFormat": "Version ({{tag}})"
@@ -145,34 +145,34 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum by (pod) (\n  container_memory_working_set_bytes{container=\"discovery\", pod=~\"istiod-.*\"}\n)",
-          "legendFormat": "Container ({{pod}})"
+          "expr": "sum by (k8s_pod_name) (\n  container_memory_working_set_bytes{container=\"discovery\", k8s_pod_name=~\"istiod.*\"}\n)",
+          "legendFormat": "Container ({{k8s_pod_name}})"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum by (pod) (\n  go_memstats_stack_inuse_bytes{app=\"istiod\"}\n)",
-          "legendFormat": "Stack ({{pod}})"
+          "expr": "sum by (k8s_pod_name) (\n  go_memstats_stack_inuse_bytes{k8s_pod_name=~\"istiod.*\"}\n)",
+          "legendFormat": "Stack ({{k8s_pod_name}})"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum by (pod) (\n  go_memstats_heap_inuse_bytes{app=\"istiod\"}\n)",
-          "legendFormat": "Heap (In Use) ({{pod}})"
+          "expr": "sum by (k8s_pod_name) (\n  go_memstats_heap_inuse_bytes{k8s_pod_name=~\"istiod.*\"}\n)",
+          "legendFormat": "Heap (In Use) ({{k8s_pod_name}})"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum by (pod) (\n  go_memstats_heap_alloc_bytes{app=\"istiod\"}\n)",
-          "legendFormat": "Heap (Allocated) ({{pod}})"
+          "expr": "sum by (k8s_pod_name) (\n  go_memstats_heap_alloc_bytes{k8s_pod_name=~\"istiod.*\"}\n)",
+          "legendFormat": "Heap (Allocated) ({{k8s_pod_name}})"
         }
       ],
       "title": "Memory Usage",
@@ -234,18 +234,18 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum by (pod) (\n  rate(\n    go_memstats_alloc_bytes_total{app=\"istiod\"}\n  [$__rate_interval])\n)",
-          "legendFormat": "Bytes ({{pod}})"
+          "expr": "sum by (k8s_pod_name) (\n  rate(\n    go_memstats_alloc_bytes_total{k8s_pod_name=~\"istiod.*\"}\n  [$__rate_interval])\n)",
+          "legendFormat": "Bytes ({{k8s_pod_name}})"
         },
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum by (pod) (\n  rate(\n    go_memstats_mallocs_total{app=\"istiod\"}\n  [$__rate_interval])\n)",
-          "legendFormat": "Objects ({{pod}})"
+          "expr": "sum by (k8s_pod_name) (\n  rate(\n    go_memstats_mallocs_total{k8s_pod_name=~\"istiod.*\"}\n  [$__rate_interval])\n)",
+          "legendFormat": "Objects ({{k8s_pod_name}})"
         }
       ],
       "title": "Memory Allocations",
@@ -288,10 +288,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum by (pod) (\n  irate(\n    container_cpu_usage_seconds_total{container=\"discovery\", pod=~\"istiod-.*\"}\n  [$__rate_interval])\n)",
-          "legendFormat": "Container ({{pod}})"
+          "expr": "sum by (k8s_pod_name) (\n  irate(\n    container_cpu_usage_seconds_total{container=\"discovery\", k8s_pod_name=~\"istiod.*\"}\n  [$__rate_interval])\n)",
+          "legendFormat": "Container ({{k8s_pod_name}})"
         }
       ],
       "title": "CPU Usage",
@@ -334,10 +334,10 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum by (pod) (\n  go_goroutines{app=\"istiod\"}\n)",
-          "legendFormat": "Goroutines ({{pod}})"
+          "expr": "sum by (k8s_pod_name) (\n  go_goroutines{k8s_pod_name=~\"istiod.*\"}\n)",
+          "legendFormat": "Goroutines ({{k8s_pod_name}})"
         }
       ],
       "title": "Goroutines",
@@ -480,7 +480,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum by (type) (\n  irate(\n    pilot_xds_pushes{}\n  [$__rate_interval])\n)",
           "legendFormat": "{{type}}"
@@ -526,7 +526,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum by (type, event) (\n  rate(\n    pilot_k8s_reg_events{}\n  [$__rate_interval])\n)",
           "legendFormat": "{{event}} {{type}}"
@@ -534,7 +534,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum by (type, event) (\n  rate(\n    pilot_k8s_cfg_events{}\n  [$__rate_interval])\n)",
           "legendFormat": "{{event}} {{type}}"
@@ -542,7 +542,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum by (type) (\n  rate(\n    pilot_push_triggers{}\n  [$__rate_interval])\n)",
           "legendFormat": "Push {{type}}"
@@ -588,7 +588,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(envoy_cluster_upstream_cx_active{cluster_name=\"xds-grpc\"})",
           "legendFormat": "Connections (client reported)"
@@ -596,7 +596,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(pilot_xds{})",
           "legendFormat": "Connections (server reported)"
@@ -642,7 +642,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum by (type) (\n  pilot_total_xds_rejects{}\n)",
           "legendFormat": "Rejected Config ({{type}})"
@@ -650,7 +650,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "pilot_total_xds_internal_errors{}",
           "legendFormat": "Internal Errors"
@@ -658,7 +658,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "pilot_xds_push_context_errors{}",
           "legendFormat": "Push Context Errors"
@@ -704,9 +704,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(rate(pilot_xds_push_time_bucket{}[1m])) by (le)",
+          "expr": "sum(rate(pilot_xds_push_time_bucket{}[5m])) by (le)",
           "format": "heatmap",
           "legendFormat": "{{le}}"
         }
@@ -751,9 +751,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(rate(pilot_xds_config_size_bytes_bucket{}[1m])) by (le)",
+          "expr": "sum(rate(pilot_xds_config_size_bytes_bucket{}[5m])) by (le)",
           "format": "heatmap",
           "legendFormat": "{{le}}"
         }
@@ -808,7 +808,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(\n  rate(\n    galley_validation_passed{}\n  [$__rate_interval])\n)",
           "legendFormat": "Success"
@@ -816,7 +816,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(\n  rate(\n    galley_validation_passed{}\n  [$__rate_interval])\n)",
           "legendFormat": "Failure"
@@ -859,7 +859,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(\n  rate(\n    sidecar_injection_success_total{}\n  [$__rate_interval])\n)",
           "legendFormat": "Success"
@@ -867,7 +867,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "$datasource"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(\n  rate(\n    sidecar_injection_failure_total{}\n  [$__rate_interval])\n)",
           "legendFormat": "Failure"

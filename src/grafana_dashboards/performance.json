@@ -62,7 +62,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "gridPos": {
         "h": 1,
@@ -76,7 +76,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "refId": "A"
         }
@@ -111,7 +111,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "gridPos": {
         "h": 1,
@@ -125,7 +125,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "refId": "A"
         }
@@ -136,7 +136,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -217,9 +217,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "(sum(irate(container_cpu_usage_seconds_total{pod=~\"istio-ingressgateway-.*\",container=\"istio-proxy\"}[1m])) / (round(sum(irate(istio_requests_total{source_workload=\"istio-ingressgateway\", reporter=\"source\"}[1m])), 0.001)/1000))",
+          "expr": "(sum(irate(container_cpu_usage_seconds_total{k8s_pod_name=~\"istio-ingressgateway-.*\",container=\"istio-proxy\"}[5m])) / (round(sum(irate(istio_requests_total{source_workload=\"istio-ingressgateway\", reporter=\"waypoint\"}[5m])), 0.001)/1000))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 1,
@@ -229,9 +229,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "(sum(irate(container_cpu_usage_seconds_total{namespace!=\"istio-system\",container=\"istio-proxy\"}[1m]))/ (round(sum(irate(istio_requests_total[1m])), 0.001)/1000))/ (sum(irate(istio_requests_total{source_workload=\"istio-ingressgateway\"}[1m])) >bool 10)",
+          "expr": "(sum(irate(container_cpu_usage_seconds_total{namespace!=\"istio-system\",container=\"istio-proxy\"}[5m]))/ (round(sum(irate(istio_requests_total[5m])), 0.001)/1000))/ (sum(irate(istio_requests_total{source_workload=\"istio-ingressgateway\"}[5m])) >bool 10)",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "istio-proxy",
@@ -244,7 +244,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -325,9 +325,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{pod=~\"istio-ingressgateway-.*\",container=\"istio-proxy\"}[1m]))",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{k8s_pod_name=~\"istio-ingressgateway-.*\",container=\"istio-proxy\"}[5m]))",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "istio-ingressgateway",
@@ -336,9 +336,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace!=\"istio-system\",container=\"istio-proxy\"}[1m]))",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace!=\"istio-system\",container=\"istio-proxy\"}[5m]))",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "istio-proxy",
@@ -352,7 +352,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "gridPos": {
         "h": 1,
@@ -366,7 +366,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "refId": "A"
         }
@@ -377,7 +377,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -458,9 +458,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(container_memory_working_set_bytes{pod=~\"istio-ingressgateway-.*\"}) / count(container_memory_working_set_bytes{pod=~\"istio-ingressgateway-.*\",container!=\"POD\"})",
+          "expr": "sum(container_memory_working_set_bytes{k8s_pod_name=~\"istio-ingressgateway-.*\"}) / count(container_memory_working_set_bytes{k8s_pod_name=~\"istio-ingressgateway-.*\",container!=\"POD\"})",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "per istio-ingressgateway",
@@ -469,7 +469,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(container_memory_working_set_bytes{namespace!=\"istio-system\",container=\"istio-proxy\"}) / count(container_memory_working_set_bytes{namespace!=\"istio-system\",container=\"istio-proxy\"})",
           "format": "time_series",
@@ -484,7 +484,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -565,9 +565,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(irate(istio_response_bytes_sum{source_workload=\"istio-ingressgateway\", reporter=\"source\"}[1m]))",
+          "expr": "sum(irate(istio_response_bytes_sum{source_workload=\"istio-ingressgateway\", reporter=\"waypoint\"}[5m]))",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "istio-ingressgateway",
@@ -576,9 +576,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(irate(istio_response_bytes_sum{source_workload_namespace!=\"istio-system\", reporter=\"source\"}[1m])) + sum(irate(istio_request_bytes_sum{source_workload_namespace!=\"istio-system\", reporter=\"source\"}[1m]))",
+          "expr": "sum(irate(istio_response_bytes_sum{source_workload_namespace!=\"istio-system\", reporter=\"waypoint\"}[5m])) + sum(irate(istio_request_bytes_sum{source_workload_namespace!=\"istio-system\", reporter=\"waypoint\"}[5m]))",
           "format": "time_series",
           "intervalFactor": 1,
           "legendFormat": "istio-proxy",
@@ -592,7 +592,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "gridPos": {
         "h": 1,
@@ -606,7 +606,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "refId": "A"
         }
@@ -617,7 +617,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -698,7 +698,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(istio_build) by (component, tag)",
           "format": "time_series",
@@ -714,7 +714,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "gridPos": {
         "h": 1,
@@ -728,7 +728,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "refId": "A"
         }
@@ -739,7 +739,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -820,7 +820,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(container_memory_working_set_bytes{container=\"istio-proxy\"})",
           "format": "time_series",
@@ -837,7 +837,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -918,9 +918,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{container=\"istio-proxy\"}[1m]))",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container=\"istio-proxy\"}[5m]))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 2,
@@ -935,7 +935,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1016,7 +1016,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "expr": "sum(container_fs_usage_bytes{container=\"istio-proxy\"})",
           "format": "time_series",
@@ -1033,7 +1033,7 @@
       "collapsed": false,
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "gridPos": {
         "h": 1,
@@ -1047,7 +1047,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
           "refId": "A"
         }
@@ -1058,7 +1058,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1139,9 +1139,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "process_virtual_memory_bytes{app=\"istiod\"}",
+          "expr": "process_virtual_memory_bytes{k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "instant": false,
           "intervalFactor": 2,
@@ -1152,9 +1152,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "process_resident_memory_bytes{app=\"istiod\"}",
+          "expr": "process_resident_memory_bytes{k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "Resident Memory",
@@ -1164,9 +1164,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "go_memstats_heap_sys_bytes{app=\"istiod\"}",
+          "expr": "go_memstats_heap_sys_bytes{k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "hide": true,
           "intervalFactor": 2,
@@ -1176,9 +1176,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "go_memstats_heap_alloc_bytes{app=\"istiod\"}",
+          "expr": "go_memstats_heap_alloc_bytes{k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "hide": true,
           "intervalFactor": 2,
@@ -1188,9 +1188,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "go_memstats_alloc_bytes{app=\"istiod\"}",
+          "expr": "go_memstats_alloc_bytes{k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "Alloc",
@@ -1200,9 +1200,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "go_memstats_heap_inuse_bytes{app=\"istiod\"}",
+          "expr": "go_memstats_heap_inuse_bytes{k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 2,
@@ -1213,9 +1213,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "go_memstats_stack_inuse_bytes{app=\"istiod\"}",
+          "expr": "go_memstats_stack_inuse_bytes{k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "Stack in-use",
@@ -1225,9 +1225,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(container_memory_working_set_bytes{container=~\"discovery|istio-proxy\", pod=~\"istiod-.*\"})",
+          "expr": "sum(container_memory_working_set_bytes{container=~\"discovery|istio-proxy\", k8s_pod_name=~\"istiod.*\"})",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 2,
@@ -1238,9 +1238,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "container_memory_working_set_bytes{container=~\"discovery|istio-proxy\", pod=~\"istiod-.*\"}",
+          "expr": "container_memory_working_set_bytes{container=~\"discovery|istio-proxy\", k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 2,
@@ -1255,7 +1255,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1336,9 +1336,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{container=~\"discovery|istio-proxy\", pod=~\"istiod-.*\"}[1m]))",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container=~\"discovery|istio-proxy\", k8s_pod_name=~\"istiod.*\"}[5m]))",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 2,
@@ -1349,9 +1349,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "sum(rate(container_cpu_usage_seconds_total{container=~\"discovery|istio-proxy\", pod=~\"istiod-.*\"}[1m])) by (container)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{container=~\"discovery|istio-proxy\", k8s_pod_name=~\"istiod.*\"}[5m])) by (container)",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 2,
@@ -1362,9 +1362,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "irate(process_cpu_seconds_total{app=\"istiod\"}[1m])",
+          "expr": "irate(process_cpu_seconds_total{k8s_pod_name=~\"istiod.*\"}[5m])",
           "format": "time_series",
           "hide": false,
           "intervalFactor": 2,
@@ -1379,7 +1379,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1460,9 +1460,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "process_open_fds{app=\"istiod\"}",
+          "expr": "process_open_fds{k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "hide": true,
           "instant": false,
@@ -1474,9 +1474,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "container_fs_usage_bytes{ container=~\"discovery|istio-proxy\", pod=~\"istiod-.*\"}",
+          "expr": "container_fs_usage_bytes{ container=~\"discovery|istio-proxy\", k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "{{ container }}",
@@ -1490,7 +1490,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "${prometheusds}"
       },
       "fieldConfig": {
         "defaults": {
@@ -1571,9 +1571,9 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${datasource}"
+            "uid": "${prometheusds}"
           },
-          "expr": "go_goroutines{app=\"istiod\"}",
+          "expr": "go_goroutines{k8s_pod_name=~\"istiod.*\"}",
           "format": "time_series",
           "intervalFactor": 2,
           "legendFormat": "Number of Goroutines",
