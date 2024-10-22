@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import ops
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
@@ -23,7 +24,6 @@ from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.apps_v1 import DaemonSet, Deployment
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import ConfigMap, Service, ServiceAccount
-from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from lightkube.resources.policy_v1 import PodDisruptionBudget
 from lightkube.resources.rbac_authorization_v1 import (
     ClusterRole,
