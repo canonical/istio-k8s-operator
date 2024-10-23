@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, List
 
 import ops
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
@@ -80,11 +81,13 @@ class IstioCoreCharm(ops.CharmBase):
             f"charms.canonical.com/{self.model.name}.{self.app.name}.telemetry": "aggregated"
         }
         self._lightkube_field_manager: str = self.app.name
+
         # Configure Observability
         self._scraping = MetricsEndpointProvider(
             self,
             jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
         )
+        self.grafana_dashboards = GrafanaDashboardProvider(self)
 
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
