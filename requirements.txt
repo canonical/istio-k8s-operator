@@ -3,3 +3,12 @@ lightkube-extensions @ git+https://github.com/canonical/lightkube-extensions.git
 ops ~= 2.5
 pydantic
 cosl
+
+# PYDEPS
+# lib/charms/tempo_coordinator_k8s/v1/charm_tracing.py
+opentelemetry-exporter-otlp-proto-http==1.21.0
+# lib/charms/tls_certificates_interface/v2/tls_certificates.py
+jsonschema
+cryptography
+# lib/charms/tempo_coordinator_k8s/v1/tracing.py
+pydantic>=2
