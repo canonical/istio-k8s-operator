@@ -105,7 +105,6 @@ class IstioCoreCharm(ops.CharmBase):
             self, relation_name="charm-tracing", protocols=["otlp_http"]
         )
 
-        # if the used protocol is updated, update manifests/tracing-service-entry.yaml
         self.workload_tracing = TracingEndpointRequirer(
             self, relation_name="workload-tracing", protocols=["otlp_grpc"]
         )
