@@ -286,7 +286,7 @@ class IstioCoreCharm(ops.CharmBase):
         }
 
         # Configure tracing
-        # TODO: Istio won't be able to send traces to Tempo until https://github.com/canonical/istio-k8s-operator/issues/30 is fixed
+        # TODO: If Tempo is on mesh, Istio won't be able to send traces to Tempo until https://github.com/canonical/istio-k8s-operator/issues/30 is fixed
         # (see https://istio.io/latest/docs/tasks/observability/distributed-tracing/opentelemetry/)
         setting_overrides.update(self._workload_tracing_config())
 
