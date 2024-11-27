@@ -8,13 +8,10 @@ settings:
   components:
     - istio
     - team-mesh
-
-  labels:
-    - 25.04
       
   add_gh_comment: false
   sync_description: false
   sync_comments: false
 
   label_mapping:
-    enhancement: Story
+    "Type: Enhancement": Story
