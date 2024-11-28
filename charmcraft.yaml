@@ -83,11 +83,29 @@ provides:
   grafana-dashboard:
     interface: grafana_dashboard
 
+requires:
+  charm-tracing:
+    interface: tracing
+    limit: 1
+    description: |
+      Enables sending charm traces to a distributed tracing backend, such as Tempo.
+  workload-tracing:
+    interface: tracing
+    limit: 1
+    description: |
+      Enables sending workload traces from on-mesh workloads to a distributed tracing backend, such as Tempo.
+      
+      In ambient mode, traces are generated at the L7 layer by a waypoint proxy. To enable this, you must deploy
+      the waypoint proxy charm (i.e https://github.com/canonical/istio-beacon-k8s-operator) with --model-on-mesh=true
+      to collect traces for all workloads on the mesh. Alternatively, if you prefer to limit tracing to specific workloads, 
+      you can relate the beacon charm to a particular charm instead of applying --model-on-mesh=true to the entire model.
+
 parts:
   charm:
     plugin: charm
     # include rustc and cargo to compile pydantic
     build-packages: [git, rustc, cargo]
+    charm-binary-python-packages: ["pydantic>=2", "cryptography", "jsonschema", "opentelemetry-exporter-otlp-proto-http==1.21.0"]
   istioctl:
     plugin: dump
     source: https://github.com/istio/istio/releases/download/1.23.1/istioctl-1.23.1-linux-amd64.tar.gz

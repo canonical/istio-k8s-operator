@@ -8,10 +8,13 @@
 import logging
 from pathlib import Path
 from typing import Dict, List
+from urllib.parse import urlparse
 
 import ops
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
+from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
 from lightkube import Client, codecs  # type: ignore
@@ -66,6 +69,16 @@ GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
 GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 
 
+@trace_charm(
+    tracing_endpoint="_charm_tracing_endpoint",
+    extra_types=[
+        Istioctl,
+        MetricsEndpointProvider,
+        GrafanaDashboardProvider,
+    ],
+    # we don't add a cert because istio does TLS his way
+    # TODO: fix when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
+)
 class IstioCoreCharm(ops.CharmBase):
     """Charm for managing the Istio service mesh control plane."""
 
@@ -88,10 +101,22 @@ class IstioCoreCharm(ops.CharmBase):
             jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
         )
         self.grafana_dashboards = GrafanaDashboardProvider(self)
+        self.charm_tracing = TracingEndpointRequirer(
+            self, relation_name="charm-tracing", protocols=["otlp_http"]
+        )
+
+        self.workload_tracing = TracingEndpointRequirer(
+            self, relation_name="workload-tracing", protocols=["otlp_grpc"]
+        )
+        self._charm_tracing_endpoint = (
+            self.charm_tracing.get_endpoint("otlp_http") if self.charm_tracing.relations else None
+        )
 
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.metrics_proxy_pebble_ready, self._reconcile)
+        self.framework.observe(self.workload_tracing.on.endpoint_changed, self._reconcile)
+        self.framework.observe(self.workload_tracing.on.endpoint_removed, self._reconcile)
 
     def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
@@ -229,6 +254,29 @@ class IstioCoreCharm(ops.CharmBase):
             logger=LOGGER,
         )
 
+    def _workload_tracing_config(self) -> Dict[str, str]:
+        """Set workload tracing configuration."""
+        tracing_config = {}
+        if not self.workload_tracing.is_ready():
+            return tracing_config
+
+        workload_tracing_endpoint = self.workload_tracing.get_endpoint("otlp_grpc")
+        if not workload_tracing_endpoint:
+            return tracing_config
+
+        tracing_config["meshConfig.enableTracing"] = "true"
+        tracing_config["meshConfig.extensionProviders[0].name"] = "otel-tracing"
+        tracing_config["meshConfig.extensionProviders[0].opentelemetry.port"] = urlparse(
+            f"//{workload_tracing_endpoint}"
+        ).port
+        tracing_config["meshConfig.extensionProviders[0].opentelemetry.service"] = urlparse(
+            f"//{workload_tracing_endpoint}"
+        ).hostname
+        tracing_config["meshConfig.defaultProviders.tracing[0]"] = "otel-tracing"
+        tracing_config["meshConfig.defaultConfig.tracing.sampling"] = 100.0
+
+        return tracing_config
+
     def _get_istioctl(self) -> Istioctl:
         """Return an initialized Istioctl instance."""
         # Default settings
@@ -236,6 +284,11 @@ class IstioCoreCharm(ops.CharmBase):
             "components.base.enabled": "true",
             "components.pilot.enabled": "true",
         }
+
+        # Configure tracing
+        # TODO: If Tempo is on mesh, Istio won't be able to send traces to Tempo until https://github.com/canonical/istio-k8s-operator/issues/30 is fixed
+        # (see https://istio.io/latest/docs/tasks/observability/distributed-tracing/opentelemetry/)
+        setting_overrides.update(self._workload_tracing_config())
 
         # Enable Envoy access logs
         # (see https://istio.io/latest/docs/tasks/observability/logs/access-log/)
