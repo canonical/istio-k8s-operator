@@ -228,7 +228,7 @@ class IstioCoreCharm(ops.CharmBase):
     def _get_istioctl(self) -> Istioctl:
         """Return an initialized Istioctl instance."""
         # Default settings
-        setting_overrides = dict()
+        setting_overrides = {}
 
         # Enable Envoy access logs
         # (see https://istio.io/latest/docs/tasks/observability/logs/access-log/)
