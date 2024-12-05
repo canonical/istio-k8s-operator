@@ -165,10 +165,6 @@ class IstioCoreCharm(ops.CharmBase):
         manifests = ictl.manifest_generate(components=CONTROL_PLANE_COMPONENTS)
         resources = codecs.load_all_yaml(manifests, create_resources_for_crds=True)
 
-        # Modify the CNI ConfigMap to add AMBIENT_TPROXY_REDIRECTION
-        # TODO: Remove after upgrading to istio 1.24
-        resources = self._modify_istio_cni_configmap(resources)
-
         resources = self._add_metrics_labels(resources)
 
         krm = self._get_resource_manager(CONTROL_PLANE_LABEL)
@@ -263,24 +259,6 @@ class IstioCoreCharm(ops.CharmBase):
             profile="empty",
             setting_overrides=setting_overrides,
         )
-
-    # This is a hacky way to get istio CNI to use REDIRECTION instead of TPROXY
-    # TODO: Remove this once we upgrade to istio 1.24 as REDIRECTION will be used by default
-    # Istioctl doesn't yet support adding env vars directly to the CNI component
-    def _modify_istio_cni_configmap(self, resources: List[AnyResource]) -> List[AnyResource]:
-        """Modify the Istio CNI ConfigMap to include the AMBIENT_TPROXY_REDIRECTION key."""
-        key = "AMBIENT_TPROXY_REDIRECTION"
-        value = "false"
-
-        # Iterate through the resources to find the istio-cni-config ConfigMap
-        for resource in resources:
-            if (
-                resource.kind == "ConfigMap"
-                and resource.metadata.name == "istio-cni-config"  # pyright: ignore
-            ):
-                resource.data[key] = value  # pyright: ignore
-        # Convert the modified resources back to a YAML string
-        return resources  # pyright: ignore
 
     def _add_metrics_labels(self, resources: List[AnyResource]) -> List[AnyResource]:
         """Append extra labels to the ztunnel, istio-cni-node, and istiod pods based on METRICS_LABELS."""
