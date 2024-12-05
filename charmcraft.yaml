@@ -29,6 +29,16 @@ config:
         If this option is set to false, users must create L4 authorization policies between waypoints and the workloads.
         See [PILOT_AUTO_ALLOW_WAYPOINT_POLICY]https://istio.io/latest/docs/reference/commands/pilot-discovery/#envvars
         for more detail.
+    platform:
+      type: string
+      default: 'microk8s'
+      description: >
+        Some Kubernetes platforms require platform-specific configuration for Istio to function correctly.  This is 
+        described in more detail upstream in [Platform Prerequisites](https://istio.io/latest/docs/ambient/install/platform-prerequisites/).
+        This configuration option maps to the `values.global.platform` field in the Istio Helm chart, and can be used to
+        specify the platform-specific configuration for the Kubernetes platform on which the charm is deployed.  If left
+        blank, no value of `values.global.platform` will be set.
+
     cni-bin-dir:
       type: string
       default: '/var/snap/microk8s/current/opt/cni/bin'
