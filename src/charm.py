@@ -41,7 +41,7 @@ LOGGER = logging.getLogger(__name__)
 
 SOURCE_PATH = Path(__file__).parent
 
-CONTROL_PLANE_COMPONENTS = ["Pilot", "Cni", "Ztunnel"]
+CONTROL_PLANE_COMPONENTS = ["pilot", "cni", "ztunnel"]
 CONTROL_PLANE_LABEL = "control-plane"
 CONTROL_PLANE_RESOURCE_TYPES = {
     ClusterRole,
@@ -58,7 +58,7 @@ CONTROL_PLANE_RESOURCE_TYPES = {
     ServiceAccount,
     ValidatingWebhookConfiguration,
 }
-ISTIO_CRDS_COMPONENTS = ["Base"]
+ISTIO_CRDS_COMPONENTS = ["base"]
 ISTIO_CRDS_LABEL = "istio-crds"
 ISTIO_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml"]
@@ -232,10 +232,7 @@ class IstioCoreCharm(ops.CharmBase):
     def _get_istioctl(self) -> Istioctl:
         """Return an initialized Istioctl instance."""
         # Default settings
-        setting_overrides = {
-            "components.base.enabled": "true",
-            "components.pilot.enabled": "true",
-        }
+        setting_overrides = dict()
 
         # Enable Envoy access logs
         # (see https://istio.io/latest/docs/tasks/observability/logs/access-log/)
@@ -243,7 +240,6 @@ class IstioCoreCharm(ops.CharmBase):
 
         # Configure CNI
         # (see https://istio.io/latest/docs/setup/additional-setup/cni/#additional-configuration)
-        setting_overrides["components.cni.enabled"] = "true"
         setting_overrides["values.cni.cniBinDir"] = self.parsed_config["cni-bin-dir"]
         setting_overrides["values.cni.cniConfDir"] = self.parsed_config["cni-conf-dir"]
 
@@ -256,7 +252,6 @@ class IstioCoreCharm(ops.CharmBase):
         ] = "0.0.0.0/0"
 
         if self.parsed_config["ambient"]:
-            setting_overrides["components.ztunnel.enabled"] = "true"
             setting_overrides["values.profile"] = "ambient"
 
         if self.parsed_config["auto-allow-waypoint-policy"]:
@@ -265,7 +260,7 @@ class IstioCoreCharm(ops.CharmBase):
         return Istioctl(
             istioctl_path="./istioctl",
             namespace=self.model.name,
-            profile="minimal",
+            profile="empty",
             setting_overrides=setting_overrides,
         )
 
