@@ -139,7 +139,7 @@ def test_istioctl_manifest_with_setting_overrides_and_components(mocked_check_ou
     for k, v in setting_overrides.items():
         expected_call_args.extend(["--set", f"{k}={v}"])
     for c in components:
-        expected_call_args.extend(["--component", c])
+        expected_call_args.extend(["--set", f"components.{c}.enabled=true"])
 
     mocked_check_output.assert_called_once_with(expected_call_args)
 
