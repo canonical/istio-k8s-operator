@@ -39,7 +39,7 @@ class Istioctl:
         self,
         istioctl_path: Optional[str] = "./istioctl",
         namespace: Optional[str] = "istio-system",
-        profile: Optional[str] = "minimal",
+        profile: Optional[str] = "empty",
         setting_overrides: Optional[Dict[str, str]] = None,
     ):
         """Python API for operating the istioctl binary.
@@ -47,7 +47,9 @@ class Istioctl:
         Args:
             istioctl_path (str): Path to the istioctl binary to be wrapped
             namespace (str): The namespace to install Istio into
-            profile (str): The Istio profile to use for installation or upgrades
+            profile (str): The Istio profile to use for installation or upgrades.  Defaults to 'empty' because we
+                           typically select a subset of the components to install via `components.NAME.enabled=true`
+                           setting_overrides or using `manifest_generate`'s `components` argument.
             setting_overrides (optional, dict): A map of IstioOperator overrides to apply during
                                                 istioctl calls, passed to istioctl as `--set`
                                                 options
@@ -68,6 +70,7 @@ class Istioctl:
 
     def install(self):
         """Install Istio using the `istioctl install` command."""
+        # TODO: If this ever gets used, it probably needs the same `components` arg as `manifest_generate`
         args = ["install", "-y", *self._args]
         self._run(*args)
 
@@ -75,18 +78,21 @@ class Istioctl:
         """Generate Istio's manifests using the `istioctl manifest generate` command.
 
         Args:
-            components: An optional list of Istio components to generate manifests for, passed to
-                        istioctl as `--component COMPONENT` arguments.  See
+            components: An optional list of Istio components to enable by passing the argument
+                        `--set components.COMPONENT.enabled=true`.  See
                         https://istio.io/latest/docs/setup/additional-setup/customize-installation/
-                        for more details. If undefined, the default set of components is returned.
+                        for more details. If undefined, no components will be added and only those components included
+                        by default in the profile will be included.
+                        Note that this argument changed when moving to Istio 1.24 because istioctl removed the old
+                        `--component` argument.
 
         Returns:
             (str) a YAML string of the Kubernetes manifest for Istio
         """
         components = components if components is not None else []
-        # Expand the components out to a list of [`--component`, COMPONENT, ...] arguments
+        # Format the requested components into istioctl args
         components_args = chain.from_iterable(
-            ("--component", component) for component in components
+            ("--set", f"components.{component}.enabled=true") for component in components
         )
         args = ["manifest", "generate", *self._args, *components_args]
         return self._run(*args)

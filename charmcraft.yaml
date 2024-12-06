@@ -108,7 +108,7 @@ parts:
     charm-binary-python-packages: ["pydantic>=2", "cryptography", "jsonschema", "opentelemetry-exporter-otlp-proto-http==1.21.0"]
   istioctl:
     plugin: dump
-    source: https://github.com/istio/istio/releases/download/1.23.1/istioctl-1.23.1-linux-amd64.tar.gz
+    source: https://github.com/istio/istio/releases/download/1.24.0/istioctl-1.24.0-linux-amd64.tar.gz
     source-type: tar
 
 
