@@ -287,10 +287,9 @@ class IstioCoreCharm(ops.CharmBase):
         # (see https://istio.io/latest/docs/tasks/observability/logs/access-log/)
         setting_overrides["meshConfig.accessLogFile"] = "/dev/stdout"
 
-        # Configure CNI
-        # (see https://istio.io/latest/docs/setup/additional-setup/cni/#additional-configuration)
-        setting_overrides["values.cni.cniBinDir"] = self.parsed_config["cni-bin-dir"]
-        setting_overrides["values.cni.cniConfDir"] = self.parsed_config["cni-conf-dir"]
+        # Ignore the platform setting if it's not set or is empty
+        if self.parsed_config["platform"]:
+            setting_overrides["values.global.platform"] = self.parsed_config["platform"]
 
         # Configure the sidecar injector to exclude outbound traffic to all IP ranges.  This is a
         # workaround for CNI limitations with init containers
