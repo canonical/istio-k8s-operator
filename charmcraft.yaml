@@ -39,27 +39,6 @@ config:
         specify the platform-specific configuration for the Kubernetes platform on which the charm is deployed.  If left
         blank, no value of `values.global.platform` will be set.
 
-    cni-bin-dir:
-      type: string
-      default: '/var/snap/microk8s/current/opt/cni/bin'
-      description: >
-        Path to CNI binaries. This path depends on the Kubernetes installation, for example:
-        * microk8s (default): /var/snap/microk8s/current/opt/cni/bin
-        * many other Kubernetes installations: /opt/cni/bin
-        Refer to https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
-        and https://istio.io/latest/docs/ambient/install/platform-prerequisites/
-        for information to find out the correct path for your Kubernetes installation.
-    cni-conf-dir:
-      type: string
-      default: '/var/snap/microk8s/current/args/cni-network'
-      description: >
-        Path to conflist files describing the CNI configuration. This path depends on the Kubernetes installation, for example:
-        * microk8s (default): /var/snap/microk8s/current/args/cni-network
-        * many other Kubernetes installations: /etc/cni/net.d
-        Refer to https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
-        and https://istio.io/latest/docs/ambient/install/platform-prerequisites/
-        for information to find out the correct path for your Kubernetes installation.
-
 assumes:
   - k8s-api
 
