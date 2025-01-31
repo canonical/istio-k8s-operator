@@ -147,7 +147,7 @@ class IstioCoreCharm(ops.CharmBase):
         except ChangeError as e:
             LOGGER.error(f"Error while replanning proxy container: {e}")
 
-    def _reconcile(self, _event: ops.ConfigChangedEvent):
+    def _reconcile(self, event: ops.ConfigChangedEvent):
         """Reconcile the entire state of the charm."""
         self._reconcile_gateway_api_crds()
         self._reconcile_istio_crds()
