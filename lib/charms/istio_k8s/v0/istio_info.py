@@ -148,20 +148,9 @@ class IstioInfoRequirer(Object):
 
 # Provider library
 
-class SendInfoFailedEvent(EventBase):
-    """Charm Event triggered when the istio-info provider fails to send data successfully."""
-
-
-class IstioInfoProviderCharmEvents(CharmEvents):
-    """Events raised by the IstioInfoProvider class."""
-    # TODO: If this becomes frequently used, consider adding more data to the event
-    send_info_failed = EventSource(SendInfoFailedEvent)
-
 
 class IstioInfoProvider(Object):
     """Class for handling the provider side of the istio-info relation."""
-
-    on = IstioInfoProviderCharmEvents()
 
     def __init__(
             self,
@@ -205,12 +194,8 @@ class IstioInfoProvider(Object):
 
     def handle_send_data_event(self, _: EventBase) -> None:
         """Handle events that should send data to the relation."""
-        try:
-            if self._charm.unit.is_leader():
-                self.send_data()
-        except Exception:
-            # TODO: This doesn't work!  Syntax is wrong
-            self.on.send_info_failed.emit()
+        if self._charm.unit.is_leader():
+            self.send_data()
 
     def istio_info(self):
         """Return the istio-info data for the relation."""
