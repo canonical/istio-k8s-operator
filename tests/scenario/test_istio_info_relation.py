@@ -1,22 +1,31 @@
 from contextlib import nullcontext as does_not_raise
 
 import pytest
+from charms.istio_k8s.v0.istio_info import (
+    DataChangedEvent,
+    IstioInfoAppData,
+    IstioInfoProvider,
+    IstioInfoRequirer,
+)
 from cosl.interfaces.utils import DataValidationError
 from ops import CharmBase
 from ops.testing import Context, Model, Relation, State
 
-
-from charms.istio_k8s.v0.istio_info import IstioInfoProvider, IstioInfoRequirer, DataChangedEvent, IstioInfoAppData
-
 ISTIO_INFO_RELATION_NAME = "istio-info-test"
 MODEL_NAME = "not-istio-system"
 
+
 class ProviderCharm(CharmBase):
-    META = {"name": "provider", "provides": {ISTIO_INFO_RELATION_NAME: {"interface": ISTIO_INFO_RELATION_NAME}}}
+    META = {
+        "name": "provider",
+        "provides": {ISTIO_INFO_RELATION_NAME: {"interface": ISTIO_INFO_RELATION_NAME}},
+    }
 
     def __init__(self, framework):
         super().__init__(framework)
-        self.relation_provider = IstioInfoProvider(self, root_namespace=MODEL_NAME, relation_name=ISTIO_INFO_RELATION_NAME)
+        self.relation_provider = IstioInfoProvider(
+            self, root_namespace=MODEL_NAME, relation_name=ISTIO_INFO_RELATION_NAME
+        )
 
 
 @pytest.fixture()
@@ -25,7 +34,10 @@ def provider_context():
 
 
 class RequirerCharm(CharmBase):
-    META = {"name": "requirer", "requires": {ISTIO_INFO_RELATION_NAME: {"interface": "istio-info"}}}
+    META = {
+        "name": "requirer",
+        "requires": {ISTIO_INFO_RELATION_NAME: {"interface": "istio-info"}},
+    }
 
     def __init__(self, framework):
         super().__init__(framework)
@@ -42,10 +54,10 @@ def istio_info_test_state(leader: bool, local_app_data: dict = None) -> (Relatio
     if local_app_data is None:
         local_app_data = {}
 
-    istio_info_relation = Relation(ISTIO_INFO_RELATION_NAME, "istio-info", local_app_data=local_app_data)
-    relations = [
-        istio_info_relation
-    ]
+    istio_info_relation = Relation(
+        ISTIO_INFO_RELATION_NAME, "istio-info", local_app_data=local_app_data
+    )
+    relations = [istio_info_relation]
 
     state = State(
         relations=relations,
@@ -65,7 +77,7 @@ def test_provider_sends_data_on_relation_joined(provider_context):
     provider_context.run(provider_context.on.relation_joined(istio_info_relation), state=state)
 
     # Assert
-    assert istio_info_relation.local_app_data == {'root_namespace': MODEL_NAME}
+    assert istio_info_relation.local_app_data == {"root_namespace": MODEL_NAME}
 
 
 def test_provider_sends_data_on_leader_elected(provider_context):
@@ -77,7 +89,7 @@ def test_provider_sends_data_on_leader_elected(provider_context):
     provider_context.run(provider_context.on.leader_elected(), state=state)
 
     # Assert
-    assert istio_info_relation.local_app_data == {'root_namespace': MODEL_NAME}
+    assert istio_info_relation.local_app_data == {"root_namespace": MODEL_NAME}
 
 
 def test_provider_doesnt_send_data_when_not_leader(provider_context):
@@ -101,24 +113,26 @@ def test_provider_doesnt_send_data_when_not_leader(provider_context):
 @pytest.mark.parametrize(
     "local_app_data",
     [
-        {}, # empty data
-        {"root_namespace": "not-the-real-namespace"}, # stale data
-    ]
+        {},  # empty data
+        {"root_namespace": "not-the-real-namespace"},  # stale data
+    ],
 )
 def test_provider_is_ready(local_app_data, provider_context):
     """Tests that a charm using the IstioInfoProvider correctly assesses whether the data sent is up to date."""
     # Arrange
     istio_info_relation, state = istio_info_test_state(leader=True, local_app_data=local_app_data)
 
-    with provider_context(provider_context.on.relation_joined(istio_info_relation), state=state) as manager:
+    with provider_context(
+        provider_context.on.relation_joined(istio_info_relation), state=state
+    ) as manager:
         charm = manager.charm
 
         # Before executing the event that causes data to be emitted, the relation handler should not be ready
-        assert charm.istio_info_provider.is_ready() == False
+        assert not charm.istio_info_provider.is_ready()
 
         # After the data is sent, the provider should indicate ready
         manager.run()
-        assert charm.istio_info_provider.is_ready() == True
+        assert charm.istio_info_provider.is_ready()
 
 
 def test_requirer_emits_info_changed_on_relation_data_changes(requirer_context):
@@ -139,10 +153,39 @@ def test_requirer_emits_info_changed_on_relation_data_changes(requirer_context):
     "relations, expected_data, context_raised",
     [
         ([], None, does_not_raise()),  # no relations
-        ([Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})], None, does_not_raise()),  # one empty relation
-        ([Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={"root_namespace": MODEL_NAME})], IstioInfoAppData(root_namespace=MODEL_NAME), does_not_raise()),  # one populated relation
-        ([Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={"root_namespace": MODEL_NAME}), Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={"root_namespace": MODEL_NAME})], None, pytest.raises(ValueError)),  # stale data
-    ]
+        (
+            [Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})],
+            None,
+            does_not_raise(),
+        ),  # one empty relation
+        (
+            [
+                Relation(
+                    ISTIO_INFO_RELATION_NAME,
+                    "istio-info",
+                    remote_app_data={"root_namespace": MODEL_NAME},
+                )
+            ],
+            IstioInfoAppData(root_namespace=MODEL_NAME),
+            does_not_raise(),
+        ),  # one populated relation
+        (
+            [
+                Relation(
+                    ISTIO_INFO_RELATION_NAME,
+                    "istio-info",
+                    remote_app_data={"root_namespace": MODEL_NAME},
+                ),
+                Relation(
+                    ISTIO_INFO_RELATION_NAME,
+                    "istio-info",
+                    remote_app_data={"root_namespace": MODEL_NAME},
+                ),
+            ],
+            None,
+            pytest.raises(ValueError),
+        ),  # stale data
+    ],
 )
 def test_requirer_get_data(relations, expected_data, context_raised, requirer_context):
     """Tests that IstioInfoRequirer.get_data() returns correctly."""
@@ -164,14 +207,56 @@ def test_requirer_get_data(relations, expected_data, context_raised, requirer_co
     "relations, skip_empty, expected_data, context_raised",
     [
         ([], True, [], does_not_raise()),  # no relations
-        ([Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})], True, [], does_not_raise()),  # one empty relation
-        ([Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={"root_namespace": MODEL_NAME})], True, [IstioInfoAppData(root_namespace=MODEL_NAME)], does_not_raise()),  # one populated relation
-        ([Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={"root_namespace": MODEL_NAME+"1"}), Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={}), Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={"root_namespace": MODEL_NAME+"3"})], True, [IstioInfoAppData(root_namespace=MODEL_NAME+"1"), IstioInfoAppData(root_namespace=MODEL_NAME+"3")], does_not_raise()),  # stale data
-        ([Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})], False, [], pytest.raises(DataValidationError)),  # one empty relation, with skip_empty=False
-
-    ]
+        (
+            [Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})],
+            True,
+            [],
+            does_not_raise(),
+        ),  # one empty relation
+        (
+            [
+                Relation(
+                    ISTIO_INFO_RELATION_NAME,
+                    "istio-info",
+                    remote_app_data={"root_namespace": MODEL_NAME},
+                )
+            ],
+            True,
+            [IstioInfoAppData(root_namespace=MODEL_NAME)],
+            does_not_raise(),
+        ),  # one populated relation
+        (
+            [
+                Relation(
+                    ISTIO_INFO_RELATION_NAME,
+                    "istio-info",
+                    remote_app_data={"root_namespace": MODEL_NAME + "1"},
+                ),
+                Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={}),
+                Relation(
+                    ISTIO_INFO_RELATION_NAME,
+                    "istio-info",
+                    remote_app_data={"root_namespace": MODEL_NAME + "3"},
+                ),
+            ],
+            True,
+            [
+                IstioInfoAppData(root_namespace=MODEL_NAME + "1"),
+                IstioInfoAppData(root_namespace=MODEL_NAME + "3"),
+            ],
+            does_not_raise(),
+        ),  # stale data
+        (
+            [Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})],
+            False,
+            [],
+            pytest.raises(DataValidationError),
+        ),  # one empty relation, with skip_empty=False
+    ],
 )
-def test_requirer_get_data_from_all_relations(relations, skip_empty, expected_data, context_raised, requirer_context):
+def test_requirer_get_data_from_all_relations(
+    relations, skip_empty, expected_data, context_raised, requirer_context
+):
     """Tests that IstioInfoRequirer.get_data_from_all_relations() returns correctly."""
     state = State(
         relations=relations,
@@ -183,6 +268,8 @@ def test_requirer_get_data_from_all_relations(relations, skip_empty, expected_da
         charm = manager.charm
 
         with context_raised:
-            data = sorted(charm.relation_requirer.get_data_from_all_relations(skip_empty=skip_empty))
+            data = sorted(
+                charm.relation_requirer.get_data_from_all_relations(skip_empty=skip_empty)
+            )
             expected_data = sorted(expected_data)
             assert data == expected_data

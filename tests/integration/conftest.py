@@ -79,5 +79,4 @@ async def istio_info_requirer_charm(ops_test: OpsTest):
         shutil.rmtree(tester_lib_folder)
     shutil.copytree(root_lib_folder, tester_lib_folder)
 
-    charm = await ops_test.build_charm(charm_path, verbosity="debug")
-    return charm
+    return await ops_test.build_charm(charm_path, verbosity="debug")

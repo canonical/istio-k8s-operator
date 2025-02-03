@@ -4,9 +4,8 @@
 import json
 import logging
 
-from ops import WaitingStatus, CollectStatusEvent, ActionEvent
-
 from charms.istio_k8s.v0.istio_info import IstioInfoRequirer
+from ops import ActionEvent, CollectStatusEvent, WaitingStatus
 from ops.charm import CharmBase
 from ops.main import main
 from ops.model import ActiveStatus
@@ -30,9 +29,11 @@ class IstioInfoTester(CharmBase):
         else:
             relation_data = self.istio_info.get_data()
             if relation_data is None:
-                statuses.append(WaitingStatus("Relation found but no data avaialble yet"))
+                statuses.append(WaitingStatus("Relation found but no data available yet"))
             else:
-                statuses.append(ActiveStatus(f"Alive with relation data: '{relation_data.model_dump()}'"))
+                statuses.append(
+                    ActiveStatus(f"Alive with relation data: '{relation_data.model_dump()}'")
+                )
         for status in statuses:
             event.add_status(status)
 
