@@ -10,10 +10,10 @@
 
 requires cosl
 """
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from cosl.interfaces.utils import DatabagModelV2, DataValidationError
-from ops import CharmBase, Object, EventBase, CharmEvents, RelationDataAccessError, EventSource
+from ops import CharmBase, Object, EventBase, CharmEvents, EventSource, BoundEvent
 from pydantic import BaseModel, Field
 
 # The unique Charmhub library identifier, never change it
@@ -77,21 +77,41 @@ class IstioInfoRequirer(Object):
             self,
             charm: CharmBase,
             relation_name: str = DEFAULT_RELATION_NAME,
+            refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
     ) -> None:
+        """Initialize the IstioInfoRequirer object.
+
+        Args:
+            charm: The charm instance that the relation is attached to.
+            relation_name: The name of the relation.
+            refresh_event: An event or list of events that should trigger this library to process its relations.
+                           By default, this charm already observes the relation_changed event.
+        """
         super().__init__(charm, relation_name)
 
         self._charm = charm
         self._relation_name = relation_name
+
+        if not refresh_event:
+            refresh_event = []
+        if isinstance(refresh_event, BoundEvent):
+            refresh_event = [refresh_event]
+        for ev in refresh_event:
+            self.framework.observe(ev, self.on_relation_changed)
 
         self.framework.observe(
             self._charm.on[self._relation_name].relation_changed,
             self.on_relation_changed
         )
 
+    def __len__(self):
+        """Return the number of related applications."""
+        return len(self.get_relations())
+
     def on_relation_changed(self, _: EventBase) -> None:
         self.on.info_changed.emit()
 
-    def _get_relations(self):
+    def get_relations(self):
         """Return the applications related to us under the monitored relation."""
         return self._charm.model.relations.get(self._relation_name, tuple())
 
@@ -111,7 +131,7 @@ class IstioInfoRequirer(Object):
                          but not here yet.
         """
         # TODO: Use get_data_from_all_relations here
-        relations = self._get_relations()
+        relations = self.get_relations()
         if len(relations) == 0:
             return None
         if len(relations) > 1:
@@ -133,7 +153,7 @@ class IstioInfoRequirer(Object):
                         TODO: is it practical for this to ever be used with skip_empty=False?  Should it be removed?
         """
         info_list = []
-        for relation in self._get_relations():
+        for relation in self.get_relations():
             data = relation.data.get(relation.app)
             if data == {} and skip_empty:
                 continue
@@ -163,6 +183,7 @@ class IstioInfoProvider(Object):
             charm: CharmBase,
             root_namespace: str,
             relation_name: str = DEFAULT_RELATION_NAME,
+            refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
     ) -> None:
         """Initialize the IstioInfoProvider object.
 
@@ -170,6 +191,8 @@ class IstioInfoProvider(Object):
             charm: The charm instance.
             root_namespace: The root namespace for the Istio installation.
             relation_name: The name of the relation.
+            refresh_event: An event or list of events that should trigger the library to publish data to its relations.
+                           By default, this charm already observes the relation_joined and on_leader_elected events.
         """
         super().__init__(charm, relation_name)
 
@@ -177,12 +200,19 @@ class IstioInfoProvider(Object):
         self._root_namespace = root_namespace
         self._relation_name = relation_name
 
+        if not refresh_event:
+            refresh_event = []
+        if isinstance(refresh_event, BoundEvent):
+            refresh_event = [refresh_event]
+        for ev in refresh_event:
+            self.framework.observe(ev, self.handle_send_data_event)
+
         self.framework.observe(
             self._charm.on[self._relation_name].relation_joined,
             self.handle_send_data_event
         )
-        # Observe leader elected events because only the leader should send data, and we don't want a case where the
-        # relation_joined event happens during a leadership change.
+        # Observe leader elected events because only the leader should send data, and we don't want to miss a case where
+        # the relation_joined event happens during a leadership change.
         self.framework.observe(
             self._charm.on.leader_elected,
             self.handle_send_data_event
