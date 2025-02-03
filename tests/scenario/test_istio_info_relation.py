@@ -204,13 +204,12 @@ def test_requirer_get_data(relations, expected_data, context_raised, requirer_co
 
 
 @pytest.mark.parametrize(
-    "relations, skip_empty, expected_data, context_raised",
+    "relations, expected_data, context_raised",
     [
-        ([], True, [], does_not_raise()),  # no relations
+        ([], [], does_not_raise()),  # no relations
         (
             [Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})],
-            True,
-            [],
+            [None],
             does_not_raise(),
         ),  # one empty relation
         (
@@ -221,7 +220,6 @@ def test_requirer_get_data(relations, expected_data, context_raised, requirer_co
                     remote_app_data={"root_namespace": MODEL_NAME},
                 )
             ],
-            True,
             [IstioInfoAppData(root_namespace=MODEL_NAME)],
             does_not_raise(),
         ),  # one populated relation
@@ -239,23 +237,17 @@ def test_requirer_get_data(relations, expected_data, context_raised, requirer_co
                     remote_app_data={"root_namespace": MODEL_NAME + "3"},
                 ),
             ],
-            True,
             [
                 IstioInfoAppData(root_namespace=MODEL_NAME + "1"),
+                None,
                 IstioInfoAppData(root_namespace=MODEL_NAME + "3"),
             ],
             does_not_raise(),
-        ),  # stale data
-        (
-            [Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})],
-            False,
-            [],
-            pytest.raises(DataValidationError),
-        ),  # one empty relation, with skip_empty=False
+        ),  # many related applications, some with missing data
     ],
 )
 def test_requirer_get_data_from_all_relations(
-    relations, skip_empty, expected_data, context_raised, requirer_context
+    relations, expected_data, context_raised, requirer_context
 ):
     """Tests that IstioInfoRequirer.get_data_from_all_relations() returns correctly."""
     state = State(
@@ -268,8 +260,10 @@ def test_requirer_get_data_from_all_relations(
         charm = manager.charm
 
         with context_raised:
-            data = sorted(
-                charm.relation_requirer.get_data_from_all_relations(skip_empty=skip_empty)
-            )
-            expected_data = sorted(expected_data)
+            data = sort_app_data(charm.relation_requirer.get_data_from_all_relations())
+            expected_data = sort_app_data(expected_data)
             assert data == expected_data
+
+def sort_app_data(data):
+    """Return sorted version of the list of relation data objects."""
+    return sorted(data, key=lambda x: x.root_namespace if x else "")

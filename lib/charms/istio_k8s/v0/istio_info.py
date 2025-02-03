@@ -41,21 +41,6 @@ class IstioInfoAppData(DatabagModelV2, BaseModel):
         examples=["istio-system"],
     )
 
-    # To make it sortable, which is useful for comparing unordered sets like how relation data is stored.
-    # TODO: Move this to DatabagModelV2?
-    def __lt__(self, other):
-        return tuple(self.model_dump().values()) < tuple(other.model_dump().values())
-
-    def __le__(self, other):
-        return tuple(self.model_dump().values()) <= tuple(other.model_dump().values())
-
-    def __gt__(self, other):
-        return tuple(self.model_dump().values()) > tuple(other.model_dump().values())
-
-    def __ge__(self, other):
-        return tuple(self.model_dump().values()) >= tuple(other.model_dump().values())
-
-
 
 # Requirer library
 
