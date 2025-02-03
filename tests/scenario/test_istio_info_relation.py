@@ -11,20 +11,20 @@ from cosl.interfaces.utils import DataValidationError
 from ops import CharmBase
 from ops.testing import Context, Model, Relation, State
 
-ISTIO_INFO_RELATION_NAME = "istio-info-test"
+RELATION_NAME = "app-data-relation"
 MODEL_NAME = "not-istio-system"
 
 
 class ProviderCharm(CharmBase):
     META = {
         "name": "provider",
-        "provides": {ISTIO_INFO_RELATION_NAME: {"interface": ISTIO_INFO_RELATION_NAME}},
+        "provides": {RELATION_NAME: {"interface": RELATION_NAME}},
     }
 
     def __init__(self, framework):
         super().__init__(framework)
         self.relation_provider = IstioInfoProvider(
-            self, root_namespace=MODEL_NAME, relation_name=ISTIO_INFO_RELATION_NAME
+            self, root_namespace=MODEL_NAME, relation_name=RELATION_NAME
         )
 
 
@@ -36,12 +36,12 @@ def provider_context():
 class RequirerCharm(CharmBase):
     META = {
         "name": "requirer",
-        "requires": {ISTIO_INFO_RELATION_NAME: {"interface": "istio-info"}},
+        "requires": {RELATION_NAME: {"interface": "istio-info"}},
     }
 
     def __init__(self, framework):
         super().__init__(framework)
-        self.relation_requirer = IstioInfoRequirer(self, relation_name=ISTIO_INFO_RELATION_NAME)
+        self.relation_requirer = IstioInfoRequirer(self, relation_name=RELATION_NAME)
 
 
 @pytest.fixture()
@@ -55,7 +55,7 @@ def istio_info_test_state(leader: bool, local_app_data: dict = None) -> (Relatio
         local_app_data = {}
 
     istio_info_relation = Relation(
-        ISTIO_INFO_RELATION_NAME, "istio-info", local_app_data=local_app_data
+        RELATION_NAME, "istio-info", local_app_data=local_app_data
     )
     relations = [istio_info_relation]
 
@@ -128,11 +128,11 @@ def test_provider_is_ready(local_app_data, provider_context):
         charm = manager.charm
 
         # Before executing the event that causes data to be emitted, the relation handler should not be ready
-        assert not charm.istio_info_provider.is_ready()
+        assert not charm.relation_provider.is_ready()
 
         # After the data is sent, the provider should indicate ready
         manager.run()
-        assert charm.istio_info_provider.is_ready()
+        assert charm.relation_provider.is_ready()
 
 
 def test_requirer_emits_info_changed_on_relation_data_changes(requirer_context):
@@ -154,14 +154,14 @@ def test_requirer_emits_info_changed_on_relation_data_changes(requirer_context):
     [
         ([], None, does_not_raise()),  # no relations
         (
-            [Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})],
+            [Relation(RELATION_NAME, "istio-info", remote_app_data={})],
             None,
             does_not_raise(),
         ),  # one empty relation
         (
             [
                 Relation(
-                    ISTIO_INFO_RELATION_NAME,
+                    RELATION_NAME,
                     "istio-info",
                     remote_app_data={"root_namespace": MODEL_NAME},
                 )
@@ -172,12 +172,12 @@ def test_requirer_emits_info_changed_on_relation_data_changes(requirer_context):
         (
             [
                 Relation(
-                    ISTIO_INFO_RELATION_NAME,
+                    RELATION_NAME,
                     "istio-info",
                     remote_app_data={"root_namespace": MODEL_NAME},
                 ),
                 Relation(
-                    ISTIO_INFO_RELATION_NAME,
+                    RELATION_NAME,
                     "istio-info",
                     remote_app_data={"root_namespace": MODEL_NAME},
                 ),
@@ -208,14 +208,14 @@ def test_requirer_get_data(relations, expected_data, context_raised, requirer_co
     [
         ([], [], does_not_raise()),  # no relations
         (
-            [Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={})],
+            [Relation(RELATION_NAME, "istio-info", remote_app_data={})],
             [None],
             does_not_raise(),
         ),  # one empty relation
         (
             [
                 Relation(
-                    ISTIO_INFO_RELATION_NAME,
+                    RELATION_NAME,
                     "istio-info",
                     remote_app_data={"root_namespace": MODEL_NAME},
                 )
@@ -226,13 +226,13 @@ def test_requirer_get_data(relations, expected_data, context_raised, requirer_co
         (
             [
                 Relation(
-                    ISTIO_INFO_RELATION_NAME,
+                    RELATION_NAME,
                     "istio-info",
                     remote_app_data={"root_namespace": MODEL_NAME + "1"},
                 ),
-                Relation(ISTIO_INFO_RELATION_NAME, "istio-info", remote_app_data={}),
+                Relation(RELATION_NAME, "istio-info", remote_app_data={}),
                 Relation(
-                    ISTIO_INFO_RELATION_NAME,
+                    RELATION_NAME,
                     "istio-info",
                     remote_app_data={"root_namespace": MODEL_NAME + "3"},
                 ),

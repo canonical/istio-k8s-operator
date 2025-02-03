@@ -7,10 +7,11 @@
     * handle send error
     * use the is_ready()
 
+use the custom event
 
 requires cosl
 """
-from typing import List, Optional, Union
+from typing import List, Optional, Union, TypeVar
 
 from cosl.interfaces.utils import DatabagModelV2, DataValidationError
 from ops import CharmBase, Object, EventBase, CharmEvents, EventSource, BoundEvent
@@ -29,46 +30,43 @@ LIBPATCH = 1
 DEFAULT_RELATION_NAME = "istio-info"
 
 
-# Interface schema
+# This section is a generic implementation of a sender/receiver library for a uni-directional application data relation
+# using a provided schema.  It is intended to be moved to a shared library in the future.
+#
+# See the concrete implementation for the istio-info interface at the bottom of this file.
 
-class IstioInfoAppData(DatabagModelV2, BaseModel):
-    """Data model for the istio-info interface."""
-
-    # TODO: Confirm that comparison between these objects works as expected so is_ready below works.
-
-    root_namespace: str = Field(
-        description="The root namespace for the Istio installation.",
-        examples=["istio-system"],
-    )
+SchemaType = TypeVar("SchemaType")
 
 
-# Requirer library
+# Receiver side
 
 class DataChangedEvent(EventBase):
-    """Charm Event triggered when the istio-info relation changes."""
+    """Charm Event triggered when the relation data has changed."""
 
 
-class IstioInfoRequirerCharmEvents(CharmEvents):
-    """Events raised by the IstioInfoRequirer class."""
-    info_changed = EventSource(DataChangedEvent)
+class ReceiverCharmEvents(CharmEvents):
+    """Events raised by the data receiver side of the interface."""
+    data_changed = EventSource(DataChangedEvent)
 
 
-class IstioInfoRequirer(Object):
-    """Class for handling the requirer side of the istio-info relation."""
+class Receiver(Object):
+    """Base class for the receiver side of a generic uni-directional application data relation."""
 
-    on = IstioInfoRequirerCharmEvents()
+    on = ReceiverCharmEvents()
 
     def __init__(
             self,
             charm: CharmBase,
-            relation_name: str = DEFAULT_RELATION_NAME,
+            relation_name: str,
+            schema: SchemaType,
             refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
     ) -> None:
-        """Initialize the IstioInfoRequirer object.
+        """Initialize the Receiver object.
 
         Args:
             charm: The charm instance that the relation is attached to.
             relation_name: The name of the relation.
+            schema: The schema to use for the data model.
             refresh_event: An event or list of events that should trigger this library to process its relations.
                            By default, this charm already observes the relation_changed event.
         """
@@ -76,6 +74,7 @@ class IstioInfoRequirer(Object):
 
         self._charm = charm
         self._relation_name = relation_name
+        self._schema = schema
 
         if not refresh_event:
             refresh_event = []
@@ -94,67 +93,55 @@ class IstioInfoRequirer(Object):
         return len(self.get_relations())
 
     def on_relation_changed(self, _: EventBase) -> None:
-        self.on.info_changed.emit()
+        """Handle when the remote application data changed."""
+        self.on.data_changed.emit()
 
     def get_relations(self):
-        """Return the applications related to us under the monitored relation."""
+        """Return the relation instances for applications related to us on the monitored relation."""
         return self._charm.model.relations.get(self._relation_name, tuple())
 
-    def get_data(self, skip_empty: bool = True) -> Optional[IstioInfoAppData]:
+    def get_data(self) -> Optional[SchemaType]:
         """Return data for at most one related application, raising if more than one is available.
 
         Useful for charms that always expect exactly one related application.  It is recommended that those charms also
-        set limit=1 for that relation in charmcraft.yaml.  Returns None if no data is available.
-
-        # TODO: Should this raise if no data is available?  Or just return None?
-
-        Args:
-            skip_empty: If True, return None if there is a relation that has not yet provided any data.
-                        If False, raise a DataValidationError
-                        TODO: Is there a better way to handle the False case?  Practically, if we ever don't skip this
-                         case it'll be hard for a charm to avoid erroring on transient situations while data is coming
-                         but not here yet.
+        set limit=1 for that relation in charmcraft.yaml.  Returns None if no data is available (either because no
+        applications are related to us, or because the related application has not sent data).
         """
-        # TODO: Use get_data_from_all_relations here
         relations = self.get_relations()
         if len(relations) == 0:
             return None
-        if len(relations) > 1:
+        elif len(relations) > 1:
             # TODO: Different exception type?
             raise ValueError("Cannot get_info when more than one application is related.")
 
         raw_data = relations[0].data.get(relations[0].app)
-        if raw_data == {} and skip_empty:
+        if raw_data == {}:
             return None
 
-        return IstioInfoAppData.load(relations[0].data[relations[0].app])
+        return self._schema(**raw_data)
 
-    def get_data_from_all_relations(self, skip_empty: bool = True) -> List[IstioInfoAppData]:
-        """Return a list of data objects from all relations.
-
-        Args:
-            skip_empty: If True, return None if there is a relation that has not yet provided any data.
-                        If False, raise a DataValidationError
-                        TODO: is it practical for this to ever be used with skip_empty=False?  Should it be removed?
-        """
-        info_list = []
-        for relation in self.get_relations():
-            data = relation.data.get(relation.app)
-            if data == {} and skip_empty:
+    def get_data_from_all_relations(self) -> List[SchemaType]:
+        """Return a list of data objects from all relations."""
+        relations = self.get_relations()
+        info_list = [None] * len(relations)
+        for i, relation in enumerate(relations):
+            data_dict = relation.data.get(relation.app)
+            if data_dict == {}:
+                # No data - leave this as None
                 continue
-            info_list.append(IstioInfoAppData.load(relation.data[relation.app]))
+            info_list[i] = self._schema(**data_dict)
         return info_list
 
 
 # Sender
 
-class IstioInfoProvider(Object):
-    """Class for handling the provider side of the istio-info relation."""
+class Sender(Object):
+    """Base class for the sending side of a generic uni-directional application data relation."""
 
     def __init__(
             self,
             charm: CharmBase,
-            root_namespace: str,
+            data: SchemaType,
             relation_name: str = DEFAULT_RELATION_NAME,
             refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
     ) -> None:
@@ -162,7 +149,7 @@ class IstioInfoProvider(Object):
 
         Args:
             charm: The charm instance.
-            root_namespace: The root namespace for the Istio installation.
+            data: An instance of the data sent on this relation.
             relation_name: The name of the relation.
             refresh_event: An event or list of events that should trigger the library to publish data to its relations.
                            By default, this charm already observes the relation_joined and on_leader_elected events.
@@ -170,7 +157,7 @@ class IstioInfoProvider(Object):
         super().__init__(charm, relation_name)
 
         self._charm = charm
-        self._root_namespace = root_namespace
+        self._data = data
         self._relation_name = relation_name
 
         if not refresh_event:
@@ -196,12 +183,6 @@ class IstioInfoProvider(Object):
         if self._charm.unit.is_leader():
             self.send_data()
 
-    def istio_info(self):
-        """Return the istio-info data for the relation."""
-        return IstioInfoAppData(
-            root_namespace=self._root_namespace,
-        )
-
     def _get_relations(self):
         """Return the applications related to us under the monitored relation."""
         return self._charm.model.relations.get(self._relation_name, tuple())
@@ -214,16 +195,15 @@ class IstioInfoProvider(Object):
         in the charm's collect_status event.
         """
         info_relations = self._get_relations()
-        app_data = self.istio_info()
         for relation in info_relations:
-            app_data.dump(relation.data[self._charm.app])
+            self._data.dump(relation.data[self._charm.app])
 
     def _is_relation_data_up_to_date(self):
         """Confirm that the Istio info data we should publish is published to all related applications."""
-        expected_app_data = self.istio_info()
+        expected_app_data = self._data
         for relation in self._get_relations():
             try:
-                app_data = IstioInfoAppData.load(relation.data[self._charm.app])
+                app_data = self._data.__class__.load(relation.data[self._charm.app])
             except DataValidationError:
                 return False
             if app_data != expected_app_data:
@@ -236,3 +216,59 @@ class IstioInfoProvider(Object):
         Useful for charms that handle the collect_status event.
         """
         return self._is_relation_data_up_to_date()
+
+
+# Concrete implementation for istio-info requirer and provider
+
+# Interface schema
+
+class IstioInfoAppData(DatabagModelV2, BaseModel):
+    """Data model for the istio-info interface."""
+
+    root_namespace: str = Field(
+        description="The root namespace for the Istio installation.",
+        examples=["istio-system"],
+    )
+
+
+class IstioInfoRequirer(Receiver):
+    """Class for handling the receiver side of the istio-info relation."""
+
+    def __init__(
+            self,
+            charm: CharmBase,
+            relation_name: str = DEFAULT_RELATION_NAME,
+            refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
+    ) -> None:
+        """Initialize the IstioInfoRequirer object.
+
+        Args:
+            charm: The charm instance.
+            relation_name: The name of the relation.
+            refresh_event: An event or list of events that should trigger the library to process its relations.
+                           By default, this charm already observes the relation_changed event.
+        """
+        super().__init__(charm, relation_name, IstioInfoAppData, refresh_event)
+
+
+class IstioInfoProvider(Sender):
+    """Class for handling the sending side of the istio-info relation."""
+
+    def __init__(
+            self,
+            charm: CharmBase,
+            root_namespace: str,
+            relation_name: str = DEFAULT_RELATION_NAME,
+            refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
+    ) -> None:
+        """Initialize the IstioInfoProvider object.
+
+        Args:
+            charm: The charm instance.
+            root_namespace: The root namespace for the Istio installation.
+            relation_name: The name of the relation.
+            refresh_event: An event or list of events that should trigger the library to publish data to its relations.
+                           By default, this charm already observes the relation_joined and on_leader_elected events.
+        """
+        data = IstioInfoAppData(root_namespace=root_namespace)
+        super().__init__(charm, data, relation_name, refresh_event)
