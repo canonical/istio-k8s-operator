@@ -2,10 +2,14 @@
 # See LICENSE file for licensing details.
 import functools
 import logging
+import os
+import shutil
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 import pytest
+from pytest_operator.plugin import OpsTest
 
 logger = logging.getLogger(__name__)
 
@@ -60,3 +64,20 @@ async def istio_core_charm(ops_test):
 
             if count == 3:
                 raise
+
+
+@pytest.fixture(scope="module")
+@timed_memoizer
+async def istio_info_requirer_charm(ops_test: OpsTest):
+    charm_path = (Path(__file__).parent / "testers" / "istio-info-requirer").absolute()
+
+    # Update libraries in the tester charms
+    root_lib_folder = Path(__file__).parent.parent.parent / "lib"
+    tester_lib_folder = charm_path / "lib"
+
+    if os.path.exists(tester_lib_folder):
+        shutil.rmtree(tester_lib_folder)
+    shutil.copytree(root_lib_folder, tester_lib_folder)
+
+    charm = await ops_test.build_charm(charm_path, verbosity="debug")
+    return charm

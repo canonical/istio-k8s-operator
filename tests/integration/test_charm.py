@@ -4,6 +4,7 @@
 
 import asyncio
 import dataclasses
+import json
 import logging
 from collections import namedtuple
 from pathlib import Path
@@ -65,6 +66,43 @@ async def test_gateway_api_crds(ops_test: OpsTest):
     """Assert that the Gateway-API CRDs are deployed."""
     do_gateway_api_crds_exist_result = do_gateway_api_crds_exist()
     assert do_gateway_api_crds_exist_result.success, do_gateway_api_crds_exist_result.message
+
+
+async def test_istio_info_relation(ops_test: OpsTest, istio_info_requirer_charm):
+    """Test the IstioInfo relation works as expected in attachment and removal."""
+    info_requirer_application = "istio-info-requirer"
+    await ops_test.model.deploy(istio_info_requirer_charm, application_name=info_requirer_application)
+    tester_application = ops_test.model.applications[info_requirer_application]
+    await ops_test.model.add_relation(APP_NAME, info_requirer_application)
+
+    # Wait for the relation to be established
+    await ops_test.model.wait_for_idle(
+        apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60
+    )
+
+    await check_tester_data(tester_application, {"root_namespace": ops_test.model.name})
+
+    # Remove the relation and confirm the data is gone
+    await ops_test.model.applications[APP_NAME].remove_relation(f"{APP_NAME}:istio-info", info_requirer_application)
+    await ops_test.model.wait_for_idle(
+            apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60
+    )
+
+    await check_tester_data(tester_application, {})
+
+
+async def check_tester_data(tester_application, expected_data):
+    # Check the relation data
+    action = (
+        await tester_application
+        .units[0]
+        .run_action(
+            "get-info",
+        )
+    )
+    action_result = await action.wait()
+    assert action_result.status == "completed"
+    assert action_result.results['relation-data'] == json.dumps(expected_data)
 
 
 async def test_removal(ops_test: OpsTest):
