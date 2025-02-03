@@ -117,7 +117,9 @@ class IstioCoreCharm(ops.CharmBase):
         )
 
         # Configure the istio-info relation handler
-        self._istio_info = IstioInfoProvider(self, root_namespace=self.model.name, relation_name=ISTIO_INFO_RELATION_NAME)
+        self._istio_info = IstioInfoProvider(
+            self, root_namespace=self.model.name, relation_name=ISTIO_INFO_RELATION_NAME
+        )
 
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)

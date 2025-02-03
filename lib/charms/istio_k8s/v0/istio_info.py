@@ -146,8 +146,7 @@ class IstioInfoRequirer(Object):
         return info_list
 
 
-# Provider library
-
+# Sender
 
 class IstioInfoProvider(Object):
     """Class for handling the provider side of the istio-info relation."""
