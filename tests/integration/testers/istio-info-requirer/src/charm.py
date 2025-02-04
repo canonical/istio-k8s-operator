@@ -19,7 +19,6 @@ class IstioInfoTester(CharmBase):
         self.istio_info = IstioInfoRequirer(self, "istio-info")
 
         self.framework.observe(self.on.collect_unit_status, self.on_collect_unit_status)
-
         self.framework.observe(self.on.get_info_action, self.on_get_info)
 
     def on_collect_unit_status(self, event: CollectStatusEvent):

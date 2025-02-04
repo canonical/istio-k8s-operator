@@ -7,7 +7,6 @@ from charms.istio_k8s.v0.istio_info import (
     IstioInfoProvider,
     IstioInfoRequirer,
 )
-from cosl.interfaces.utils import DataValidationError
 from ops import CharmBase
 from ops.testing import Context, Model, Relation, State
 
@@ -54,9 +53,7 @@ def istio_info_test_state(leader: bool, local_app_data: dict = None) -> (Relatio
     if local_app_data is None:
         local_app_data = {}
 
-    istio_info_relation = Relation(
-        RELATION_NAME, "istio-info", local_app_data=local_app_data
-    )
+    istio_info_relation = Relation(RELATION_NAME, "istio-info", local_app_data=local_app_data)
     relations = [istio_info_relation]
 
     state = State(
@@ -263,6 +260,7 @@ def test_requirer_get_data_from_all_relations(
             data = sort_app_data(charm.relation_requirer.get_data_from_all_relations())
             expected_data = sort_app_data(expected_data)
             assert data == expected_data
+
 
 def sort_app_data(data):
     """Return sorted version of the list of relation data objects."""

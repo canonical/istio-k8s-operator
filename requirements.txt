@@ -9,3 +9,6 @@ cosl
 opentelemetry-exporter-otlp-proto-http==1.21.0
 # lib/charms/tempo_coordinator_k8s/v1/tracing.py
 pydantic>=2
+# lib/charms/istio_k8s/v0/istio_info.py
+# TODO: Pin to a real versioned release once available
+https://github.com/canonical/charm-relation-building-blocks/archive/initial-files.zip
