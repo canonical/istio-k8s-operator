@@ -13,10 +13,8 @@ mention the things we import that might be useful to the user (events, etc)
 """
 from typing import List, Optional, Union
 
-from charm_relation_building_blocks.data_models import DatabagModel
 from charm_relation_building_blocks.relation_handlers import Receiver, Sender
 # import and re-export these classes from the relation_handlers module, in case the user needs them
-from charm_relation_building_blocks.data_models import DataValidationError as DataValidationError  # ignore: F401
 from charm_relation_building_blocks.relation_handlers import DataChangedEvent as DataChangedEvent  # ignore: F401
 from charm_relation_building_blocks.relation_handlers import ReceiverCharmEvents as ReceiverCharmEvents  # ignore: F401
 
@@ -38,7 +36,7 @@ DEFAULT_RELATION_NAME = "istio-info"
 
 # Interface schema
 
-class IstioInfoAppData(DatabagModel, BaseModel):
+class IstioInfoAppData(BaseModel):
     """Data model for the istio-info interface."""
 
     root_namespace: str = Field(
