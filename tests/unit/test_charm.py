@@ -41,6 +41,8 @@ class TestCharm:
         harness,
     ):
         harness.begin_with_initial_hooks()
+        # Because Harness does not, by default, fire framework events like `collect-status`
+        harness.evaluate_status()
 
         assert isinstance(harness.charm.unit.status, ActiveStatus)
 

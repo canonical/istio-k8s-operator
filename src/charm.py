@@ -35,6 +35,7 @@ from lightkube.resources.rbac_authorization_v1 import (
     RoleBinding,
 )
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
+from ops import StatusBase
 from ops.pebble import ChangeError, Layer
 
 from config import CharmConfig
@@ -117,6 +118,7 @@ class IstioCoreCharm(ops.CharmBase):
         self.framework.observe(self.on.metrics_proxy_pebble_ready, self._reconcile)
         self.framework.observe(self.workload_tracing.on.endpoint_changed, self._reconcile)
         self.framework.observe(self.workload_tracing.on.endpoint_removed, self._reconcile)
+        self.framework.observe(self.on.collect_unit_status, self.on_collect_status)
 
     def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
@@ -154,8 +156,17 @@ class IstioCoreCharm(ops.CharmBase):
         # Ensure the Pebble service is up-to-date
         self._setup_proxy_pebble_service()
 
-        # TODO: check if the deployment was successful before setting charm to active
-        self.unit.status = ops.ActiveStatus()
+    def on_collect_status(self, event: ops.CollectStatusEvent):
+        """Handle the collect status event, determining the status of the charm."""
+        statuses: List[StatusBase] = []
+
+        # Check if istiod is up
+        # TODO: Implement a better check for whether the deployment is actually active.  Atm if we get to this stage, we
+        #  know everything was attempted properly and we assume it worked.
+        statuses.append(ops.ActiveStatus())
+
+        for status in statuses:
+            event.add_status(status)
 
     def _remove(self, _event: ops.RemoveEvent):
         """Remove the charm's resources."""
