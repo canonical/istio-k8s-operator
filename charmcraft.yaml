@@ -69,6 +69,8 @@ containers:
 provides:
   istio-info:
     interface: istio_info
+    description: |
+      Provides information about this Istio instance.
   metrics-endpoint:
     interface: prometheus_scrape
   grafana-dashboard:
