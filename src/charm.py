@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 import ops
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
-from charms.istio_k8s.v0.istio_info import IstioInfoProvider
+from charms.istio_k8s.v0.istio_metadata import IstioMetadataProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -70,7 +70,7 @@ GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml
 GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
 GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 
-ISTIO_INFO_RELATION_NAME = "istio-info"
+ISTIO_METADATA_RELATION_NAME = "istio-metadata"
 
 
 @trace_charm(
@@ -117,8 +117,8 @@ class IstioCoreCharm(ops.CharmBase):
         )
 
         # Configure the istio-info relation handler
-        self._istio_info = IstioInfoProvider(
-            self, root_namespace=self.model.name, relation_name=ISTIO_INFO_RELATION_NAME
+        self._istio_info = IstioMetadataProvider(
+            self, root_namespace=self.model.name, relation_name=ISTIO_METADATA_RELATION_NAME
         )
 
         self.framework.observe(self.on.config_changed, self._reconcile)

@@ -1,7 +1,7 @@
 """TODO: Add a proper docstring here.
 
 * using requirer:
-    * handle info changed event  <-- suggest a charm test to confirm this?
+    * handle data changed event  <-- suggest a charm test to confirm this?
 
 * using provider:
     * handle send error
@@ -31,13 +31,13 @@ LIBAPI = 0
 # to 0 if you are raising the major API version
 LIBPATCH = 1
 
-DEFAULT_RELATION_NAME = "istio-info"
+DEFAULT_RELATION_NAME = "istio-metadata"
 
 
 # Interface schema
 
-class IstioInfoAppData(BaseModel):
-    """Data model for the istio-info interface."""
+class IstioMetadataAppData(BaseModel):
+    """Data model for the istio-metadata interface."""
 
     root_namespace: str = Field(
         description="The root namespace for the Istio installation.",
@@ -45,8 +45,8 @@ class IstioInfoAppData(BaseModel):
     )
 
 
-class IstioInfoRequirer(Receiver):
-    """Class for handling the receiver side of the istio-info relation."""
+class IstioMetadataRequirer(Receiver):
+    """Class for handling the receiver side of the istio-metadata relation."""
 
     # inherits the events:
     # on = ReceiverCharmEvents()  # type: ignore[reportAssignmentType]
@@ -58,7 +58,7 @@ class IstioInfoRequirer(Receiver):
             relation_name: str = DEFAULT_RELATION_NAME,
             refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
     ) -> None:
-        """Initialize the IstioInfoRequirer object.
+        """Initialize the IstioMetadataRequirer object.
 
         Args:
             charm: The charm instance.
@@ -66,11 +66,11 @@ class IstioInfoRequirer(Receiver):
             refresh_event: An event or list of events that should trigger the library to process its relations.
                            By default, this charm already observes the relation_changed event.
         """
-        super().__init__(charm, relation_name, IstioInfoAppData, refresh_event)
+        super().__init__(charm, relation_name, IstioMetadataAppData, refresh_event)
 
 
-class IstioInfoProvider(Sender):
-    """Class for handling the sending side of the istio-info relation."""
+class IstioMetadataProvider(Sender):
+    """Class for handling the sending side of the istio-metadata relation."""
 
     def __init__(
             self,
@@ -79,7 +79,7 @@ class IstioInfoProvider(Sender):
             relation_name: str = DEFAULT_RELATION_NAME,
             refresh_event: Optional[Union[BoundEvent, List[BoundEvent]]] = None,
     ) -> None:
-        """Initialize the IstioInfoProvider object.
+        """Initialize the IstioMetadataProvider object.
 
         Args:
             charm: The charm instance.
@@ -88,5 +88,5 @@ class IstioInfoProvider(Sender):
             refresh_event: An event or list of events that should trigger the library to publish data to its relations.
                            By default, this charm already observes the relation_joined and on_leader_elected events.
         """
-        data = IstioInfoAppData(root_namespace=root_namespace)
+        data = IstioMetadataAppData(root_namespace=root_namespace)
         super().__init__(charm, data, relation_name, refresh_event)

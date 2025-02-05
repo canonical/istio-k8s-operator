@@ -1,6 +1,6 @@
 # Copyright 2022 Canonical Ltd.
 # See LICENSE file for licensing details.
-name: info-tester
+name: metadata-tester
 description: tester charm that implements the requirer side of a generic one-way data relation
 summary: tester charm that implements the requirer side of a generic one-way data relation
 type: charm
@@ -15,9 +15,9 @@ bases:
 config:
 
 requires:
-  info:
+  metadata:
     limit: 1
-    interface: istio_info
+    interface: istio_metadata
 
 parts:
   charm:

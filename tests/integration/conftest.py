@@ -68,8 +68,8 @@ async def istio_core_charm(ops_test):
 
 @pytest.fixture(scope="module")
 @timed_memoizer
-async def istio_info_requirer_charm(ops_test: OpsTest):
-    charm_path = (Path(__file__).parent / "testers" / "istio-info-requirer").absolute()
+async def istio_metadata_requirer_charm(ops_test: OpsTest):
+    charm_path = (Path(__file__).parent / "testers" / "istio-metadata-requirer").absolute()
 
     # Update libraries in the tester charms
     root_lib_folder = Path(__file__).parent.parent.parent / "lib"

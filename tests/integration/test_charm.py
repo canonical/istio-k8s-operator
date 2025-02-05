@@ -68,14 +68,14 @@ async def test_gateway_api_crds(ops_test: OpsTest):
     assert do_gateway_api_crds_exist_result.success, do_gateway_api_crds_exist_result.message
 
 
-async def test_istio_info_relation(ops_test: OpsTest, istio_info_requirer_charm):
-    """Test the IstioInfo relation works as expected in attachment and removal."""
-    info_requirer_application = "istio-info-requirer"
+async def test_istio_metadata_relation(ops_test: OpsTest, istio_metadata_requirer_charm):
+    """Test the IstioMetadata relation works as expected in attachment and removal."""
+    metadata_requirer_application = "istio-metadata-requirer"
     await ops_test.model.deploy(
-        istio_info_requirer_charm, application_name=info_requirer_application
+        istio_metadata_requirer_charm, application_name=metadata_requirer_application
     )
-    tester_application = ops_test.model.applications[info_requirer_application]
-    await ops_test.model.add_relation(APP_NAME, info_requirer_application)
+    tester_application = ops_test.model.applications[metadata_requirer_application]
+    await ops_test.model.add_relation(APP_NAME, metadata_requirer_application)
 
     # Wait for the relation to be established
     await ops_test.model.wait_for_idle(
@@ -86,7 +86,7 @@ async def test_istio_info_relation(ops_test: OpsTest, istio_info_requirer_charm)
 
     # Remove the relation and confirm the data is gone
     await ops_test.model.applications[APP_NAME].remove_relation(
-        f"{APP_NAME}:istio-info", info_requirer_application
+        f"{APP_NAME}:istio-metadata", metadata_requirer_application
     )
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME], status="active", raise_on_blocked=True, timeout=60
@@ -98,7 +98,7 @@ async def test_istio_info_relation(ops_test: OpsTest, istio_info_requirer_charm)
 async def check_tester_data(tester_application, expected_data):
     # Check the relation data
     action = await tester_application.units[0].run_action(
-        "get-info",
+        "get-metadata",
     )
     action_result = await action.wait()
     assert action_result.status == "completed"

@@ -67,8 +67,8 @@ containers:
     resource: metrics-proxy-image
 
 provides:
-  istio-info:
-    interface: istio_info
+  istio-metadata:
+    interface: istio_metadata
     description: |
       Provides information about this Istio instance.
   metrics-endpoint:
