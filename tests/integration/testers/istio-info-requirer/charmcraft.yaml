@@ -15,7 +15,7 @@ bases:
 config:
 
 requires:
-  istio-info:
+  info:
     limit: 1
     interface: istio_info
 
