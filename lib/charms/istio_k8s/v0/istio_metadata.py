@@ -1,16 +1,81 @@
-"""TODO: Add a proper docstring here.
+"""istio_metadata
 
-* using requirer:
-    * handle data changed event  <-- suggest a charm test to confirm this?
+This implements provider and requirer sides of the istio-metadata interface, which is used to communicate information
+about an Istio installation such as its root namespace.
 
-* using provider:
-    * handle send error
-    * use the is_ready()
+## Usage
 
-use the custom event
+### Requirer
 
-mention the things we import that might be useful to the user (events, etc)
+To add this relation to your charm as a requirer, add the following to your `charmcraft.yaml` or `metadata.yaml`:
+
+```yaml
+requires:
+  istio-metadata:
+    # The example below uses the API for when limit=1.  If you need to support multiple related applications, remove
+    # this and use the list-based data accessor method.
+    limit: 1
+    interface: istio_metadata
+```
+
+To handle the relation events in your charm, use `IstioMetadataRequirer`.  That object handles all relation events for
+this relation, and emits a `DataChangedEvent` when data changes the charm might want to react to occur.  To set it up,
+instantiate an `IstioMetadataRequirer` object in your charm's `__init__` method and observe the `DataChangedEvent`:
+
+```python
+class FooCharm(CharmBase):
+    def __init__(self, framework):
+        super().__init__(framework)
+        # Create the IstioMetadataRequirer instance, providing the relation name you've used
+        self.istio_metadata = IstioMetadataRequirer(charm=self, relation_name="istio-metadata")
+        self.framework.observe(self.istio_metadata.on.data_changed, self.do_something_with_metadata)
+```
+
+To access the data elsewhere in the charm, use the provided data accessors.  These return `IstioMetadataAppData`
+objects:
+
+```python
+class FooCharm(CharmBase):
+    ...
+    # If using limit=1
+    def do_something_with_metadata(self):
+        # Get exactly one related application's data, raising if more than one is available
+        # note: if not using limit=1, see .get_data_from_all_relations()
+        metadata = self.istio_metadata.get_data()
+        if metadata is None:
+            self.log("No metadata available yet")
+            return
+        self.log(f"Got Istio's root_namespace: {metadata.root_namespace}")
+```
+
+### Provider
+
+To add this relation to your charm as a provider, add the following to your `charmcraft.yaml` or `metadata.yaml`:
+
+```yaml
+provides:
+  istio-metadata:
+    interface: istio_metadata
+```
+
+To handle the relation events in your charm, use `IstioMetadataProvider`.  That object sends data to all related
+requirers automatically when applications join.  To set it up, instantiate an `IstioMetadataProvider` object in your
+charm's `__init__` method:
+
+```python
+class FooCharm(CharmBase):
+    def __init__(self, framework):
+        super().__init__(framework)
+        # Create the IstioMetadataProvider instance, providing the root namespace for the Istio installation
+        self.istio_metadata = IstioMetadataProvider(
+            charm=self,
+            root_namespace=self.model.name,
+            relation_name="istio-metadata',
+        )
+```
 """
+
+
 from typing import List, Optional, Union
 
 from charm_relation_building_blocks.relation_handlers import Receiver, Sender
