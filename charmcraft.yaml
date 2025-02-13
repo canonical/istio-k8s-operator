@@ -67,6 +67,10 @@ containers:
     resource: metrics-proxy-image
 
 provides:
+  istio-metadata:
+    interface: istio_metadata
+    description: |
+      Provides information about this Istio instance.
   metrics-endpoint:
     interface: prometheus_scrape
   grafana-dashboard:
