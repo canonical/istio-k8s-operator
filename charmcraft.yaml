@@ -88,6 +88,13 @@ requires:
       the waypoint proxy charm (i.e https://github.com/canonical/istio-beacon-k8s-operator) with --model-on-mesh=true
       to collect traces for all workloads on the mesh. Alternatively, if you prefer to limit tracing to specific workloads, 
       you can relate the beacon charm to a particular charm instead of applying --model-on-mesh=true to the entire model.
+  istio-ingress-config:
+    interface: istio_ingress_config
+    description: |
+      Provides a generic interface for exchanging configuration data between related applications.
+      Currently, it facilitates the exchange of OAuth configuration details, such as the service name and port,
+      and supports the generation of unique OAuth provider identifiers. This interface is designed to be
+      extended in the future to accommodate additional configuration data beyond OAuth as needed.
 
 parts:
   charm:
