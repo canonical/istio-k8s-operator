@@ -273,7 +273,7 @@ class IstioCoreCharm(ops.CharmBase):
                     {
                         "name": "otel-tracing",
                         "opentelemetry": {
-                            "port": parsed.port,
+                            "port": str(parsed.port),
                             "service": parsed.hostname,
                         },
                     }
