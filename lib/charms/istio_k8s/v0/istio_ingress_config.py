@@ -1,10 +1,8 @@
 """istio_ingress_config.
 
 This library implements endpoint wrappers for the istio-ingress-config interface.
-The interface is used to exchange configuration information between related applications.
 Currently, it facilitates the exchange of OAuth configuration details—such as the service name and port—and
-supports the generation of unique OAuth provider identifiers. This design is generic and can be extended
-in the future to accommodate additional configuration data beyond OAuth.
+supports the generation of unique OAuth provider identifiers.
 
 Usage:
 
@@ -49,7 +47,7 @@ Usage:
 """
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from ops import Application, Relation, RelationMapping
 from pydantic import BaseModel, Field
@@ -77,9 +75,6 @@ class ProviderIngressConfigData(BaseModel):
     Holds the OAuth service name and port information.
     """
 
-    model_name: Optional[str] = Field(
-        default=None, description="The juju model name of the ingress charm."
-    )
     oauth_service_name: Optional[str] = Field(
         default=None, description="The OAuth service name provided by the ingress charm."
     )
@@ -115,7 +110,6 @@ class IngressConfigProvider:
         self,
         relation_mapping: RelationMapping,
         app: Application,
-        model_name: str,
         relation_name: str = DEFAULT_RELATION_NAME,
     ) -> None:
         """Initialize the IngressConfigProvider.
@@ -129,12 +123,11 @@ class IngressConfigProvider:
         self._charm_relation_mapping = relation_mapping
         self._app = app
         self._relation_name = relation_name
-        self._model_name = model_name
 
     @property
-    def relations(self):
+    def relations(self) -> List[Relation]:
         """Return the relation instances for the monitored relation."""
-        return self._charm_relation_mapping.get(self._relation_name, ())
+        return self._charm_relation_mapping.get(self._relation_name, [])
 
     def publish(self, oauth_service_name: Optional[str] = None, oauth_port: Optional[str] = None):
         """Publish OAuth configuration data to all related applications.
@@ -146,7 +139,6 @@ class IngressConfigProvider:
         data = ProviderIngressConfigData(
             oauth_service_name=oauth_service_name,
             oauth_port=oauth_port,
-            model_name=self._model_name,
         ).model_dump(mode="json", by_alias=True, exclude_defaults=True, round_trip=True)
 
         for relation in self.relations:
@@ -208,9 +200,9 @@ class IngressConfigRequirer:
         self._relation_name = relation_name
 
     @property
-    def relations(self):
+    def relations(self) -> List[Relation]:
         """Return the relation instances for the monitored relation."""
-        return self._charm_relation_mapping.get(self._relation_name, ())
+        return self._charm_relation_mapping.get(self._relation_name, [])
 
     def publish_oauth_provider_name(self, relation: Relation, unique_name: str) -> None:
         """Publish a unique OAuth provider name and ingress provider name for a connected ingress charm.

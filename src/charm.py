@@ -5,6 +5,7 @@
 
 """A Juju charm for managing the Istio service mesh control plane."""
 
+import hashlib
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -12,7 +13,10 @@ from urllib.parse import urlparse
 
 import ops
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
-from charms.istio_k8s.v0.istio_ingress_config import IngressConfigRequirer
+from charms.istio_k8s.v0.istio_ingress_config import (
+    IngressConfigRequirer,
+    ProviderIngressConfigData,
+)
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -123,11 +127,8 @@ class IstioCoreCharm(ops.CharmBase):
         self.framework.observe(self.workload_tracing.on.endpoint_changed, self._reconcile)
         self.framework.observe(self.workload_tracing.on.endpoint_removed, self._reconcile)
         self.framework.observe(self.on.collect_unit_status, self.on_collect_status)
-
-        self.framework.observe(self.on["istio-ingress-config"].relation_joined, self._reconcile)
         self.framework.observe(self.on["istio-ingress-config"].relation_changed, self._reconcile)
         self.framework.observe(self.on["istio-ingress-config"].relation_broken, self._reconcile)
-        self.framework.observe(self.on["istio-ingress-config"].relation_departed, self._reconcile)
 
     def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
@@ -243,6 +244,14 @@ class IstioCoreCharm(ops.CharmBase):
         krm = self._get_resource_manager(GATEWAY_API_CRDS_LABEL)
         krm.reconcile(resources)  # pyright: ignore
 
+    def _generate_provider_name(
+        self, ingress_app_name: str, oauth_info: ProviderIngressConfigData
+    ) -> str:
+        """Generate a unique provider name from the OAuth configuration."""
+        data = f"{oauth_info.oauth_service_name}:{oauth_info.oauth_port}"
+        stable_hash = hashlib.sha256(data.encode("utf-8")).hexdigest()
+        return f"oauth-{ingress_app_name}-{stable_hash}"
+
     def _publish_oauth_provider_names(self):
         """Publish the unique OAuth provider name for each ready relation.
 
@@ -251,9 +260,8 @@ class IstioCoreCharm(ops.CharmBase):
         """
         for relation in self.ingress_config.relations:
             if self.ingress_config.is_provider_ready(relation):
-                ingress_app_name = relation.app.name
-                ingress_app_model = self.ingress_config.get_provider_oauth_info(relation).model_name  # type: ignore
-                unique_name = f"oauth-{ingress_app_name}-{ingress_app_model}"
+                oauth_info = self.ingress_config.get_provider_oauth_info(relation)
+                unique_name = self._generate_provider_name(relation.app.name, oauth_info)  # type: ignore
                 self.ingress_config.publish_oauth_provider_name(relation, unique_name)
 
     def _get_control_plane_kubernetes_resource_manager(self):
@@ -310,13 +318,13 @@ class IstioCoreCharm(ops.CharmBase):
                 }
         return providers, global_config
 
-    def _external_authorizers_providers(self) -> List[Dict[str, Any]]:
+    def _external_authorizer_providers(self) -> List[Dict[str, Any]]:
         """Return a list of external authorizers provider configurations."""
         providers = []
         for relation in self.ingress_config.relations:
             if self.ingress_config.is_provider_ready(relation):
                 oauth_info = self.ingress_config.get_provider_oauth_info(relation)
-                oauth_name = self.ingress_config.get_oauth_provider_name(relation)
+                oauth_name = self._generate_provider_name(relation.app.name, oauth_info)  # type: ignore
                 if oauth_name and oauth_info:
                     providers.append(
                         {
@@ -339,41 +347,28 @@ class IstioCoreCharm(ops.CharmBase):
                     )
         return providers
 
-    # TODO: Still a WIP due to unmarshaling issue with istioctl
-    def _helm_list(self, lst: List[str]) -> str:
-        """Convert a list of strings into a Helm-style array literal with quoted items."""
-        return "[" + ",".join(f'"{item}"' for item in lst) + "]"
-
-    # TODO: Still a WIP due to unmarshaling issue with istioctl
-    def _helm_map(self, d: Dict[str, str]) -> str:
-        """Convert a dictionary into a Helm-style map literal with quoted keys and values."""
-        return "{" + ",".join(f'"{k}":"{v}"' for k, v in d.items()) + "}"
+    def _flatten_config(self, value: Any, prefix: str = "") -> Dict[str, Any]:
+        """Recursively flatten a nested dictionary or list into a dictionary of key/value pairs."""
+        flat: Dict[str, Any] = {}
+        if isinstance(value, dict):
+            for k, v in value.items():
+                new_prefix = f"{prefix}.{k}" if prefix else k
+                flat.update(self._flatten_config(v, new_prefix))
+        elif isinstance(value, list):
+            for i, item in enumerate(value):
+                new_prefix = f"{prefix}[{i}]"
+                flat.update(self._flatten_config(item, new_prefix))
+        else:
+            flat[prefix] = value
+        return flat
 
     def _build_extension_providers_config(self, providers: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Build a flat configuration dictionary for all extension providers."""
+        """Build a flat configuration dictionary for all extension providers by flattening provider objects."""
         config: Dict[str, Any] = {}
         for idx, provider in enumerate(providers):
-            base = f"meshConfig.extensionProviders[{idx}]"
-            config[f"{base}.name"] = provider["name"]
-            if "opentelemetry" in provider:
-                config[f"{base}.opentelemetry.port"] = str(provider["opentelemetry"]["port"])
-                config[f"{base}.opentelemetry.service"] = provider["opentelemetry"]["service"]
-            if "envoyExtAuthzHttp" in provider:
-                ext_http_cfg = provider["envoyExtAuthzHttp"]
-                config[f"{base}.envoyExtAuthzHttp.service"] = ext_http_cfg["service"]
-                config[f"{base}.envoyExtAuthzHttp.port"] = ext_http_cfg["port"]
-                # config[f"{base}.envoyExtAuthzHttp.includeRequestHeadersInCheck"] = self._helm_map(
-                #     ext_http_cfg["includeRequestHeadersInCheck"]
-                # )
-                config[f"{base}.envoyExtAuthzHttp.headersToUpstreamOnAllow"] = self._helm_list(
-                    ext_http_cfg["headersToUpstreamOnAllow"]
-                )
-                config[f"{base}.envoyExtAuthzHttp.headersToDownstreamOnAllow"] = self._helm_list(
-                    ext_http_cfg["headersToDownstreamOnAllow"]
-                )
-                config[f"{base}.envoyExtAuthzHttp.headersToDownstreamOnDeny"] = self._helm_list(
-                    ext_http_cfg["headersToDownstreamOnDeny"]
-                )
+            prefix = f"meshConfig.extensionProviders[{idx}]"
+            flat = self._flatten_config(provider, prefix)
+            config.update(flat)
         return config
 
     def _get_istioctl(self) -> Istioctl:
@@ -387,7 +382,7 @@ class IstioCoreCharm(ops.CharmBase):
         tracing_providers, global_tracing = self._workload_tracing_provider()
 
         # Get external authorizers providers.
-        external_providers = self._external_authorizers_providers()
+        external_providers = self._external_authorizer_providers()
 
         # Combine all providers (order does not matter).
         all_providers = tracing_providers + external_providers
