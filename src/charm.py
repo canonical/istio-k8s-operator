@@ -263,6 +263,9 @@ class IstioCoreCharm(ops.CharmBase):
 
     def _workload_tracing_provider(self) -> Tuple[List[Any], Dict[str, Any]]:
         """Return a tuple with the tracing provider and global tracing settings as dictionaries."""
+        if not self.workload_tracing.is_ready():
+            return [], {}
+
         if not (endpoint := self.workload_tracing.get_endpoint("otlp_grpc")):
             return [], {}
 
