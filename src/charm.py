@@ -262,50 +262,31 @@ class IstioCoreCharm(ops.CharmBase):
         )
 
     def _workload_tracing_provider(self) -> Tuple[List[Any], Dict[str, Any]]:
-        """Return a tuple with a list containing the tracing provider and global tracing settings."""
-        providers = []
-        global_config = {}
-        if self.workload_tracing.is_ready():
-            workload_tracing_endpoint = self.workload_tracing.get_endpoint("otlp_grpc")
-            if workload_tracing_endpoint:
-                parsed = urlparse(f"//{workload_tracing_endpoint}")
-                providers.append(
-                    {
-                        "name": "otel-tracing",
-                        "opentelemetry": {
-                            "port": str(parsed.port),
-                            "service": parsed.hostname,
-                        },
-                    }
-                )
-                global_config = {
-                    "meshConfig.enableTracing": "true",
-                    "meshConfig.defaultProviders.tracing": "otel-tracing",
-                    "meshConfig.defaultConfig.tracing.sampling": 100.0,
-                }
-        return providers, global_config
+        """Return a tuple with the tracing provider and global tracing settings as dictionaries."""
+        if not (endpoint := self.workload_tracing.get_endpoint("otlp_grpc")):
+            return [], {}
 
-    def _flatten_config(self, value: Any, prefix: str = "") -> Dict[str, Any]:
-        """Recursively flatten a nested dictionary or list into a dictionary of key/value pairs."""
-        flat: Dict[str, Any] = {}
-        if isinstance(value, dict):
-            for k, v in value.items():
-                new_prefix = f"{prefix}.{k}" if prefix else k
-                flat.update(self._flatten_config(v, new_prefix))
-        elif isinstance(value, list):
-            for i, item in enumerate(value):
-                new_prefix = f"{prefix}[{i}]"
-                flat.update(self._flatten_config(item, new_prefix))
-        else:
-            flat[prefix] = value
-        return flat
+        parsed = urlparse(f"//{endpoint}")
+        provider = {
+            "name": "otel-tracing",
+            "opentelemetry": {
+                "port": parsed.port,
+                "service": parsed.hostname,
+            },
+        }
+        global_config = {
+            "meshConfig.enableTracing": "true",
+            "meshConfig.defaultProviders.tracing[0]": "otel-tracing",
+            "meshConfig.defaultConfig.tracing.sampling": 100.0,
+        }
+        return [provider], global_config
 
     def _build_extension_providers_config(self, providers: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Build a flat configuration dictionary for all extension providers by flattening provider objects."""
         config: Dict[str, Any] = {}
         for idx, provider in enumerate(providers):
             prefix = f"meshConfig.extensionProviders[{idx}]"
-            flat = self._flatten_config(provider, prefix)
+            flat = flatten_config(provider, prefix)
             config.update(flat)
         return config
 
@@ -376,6 +357,22 @@ class IstioCoreCharm(ops.CharmBase):
     def format_labels(label_dict: Dict[str, str]) -> str:
         """Format a dictionary into a comma-separated string of key=value pairs."""
         return ",".join(f"{key}={value}" for key, value in label_dict.items())
+
+
+def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
+    """Recursively flatten a nested dictionary or list into a dictionary of key/value pairs."""
+    flat: Dict[str, Any] = {}
+    if isinstance(value, dict):
+        for k, v in value.items():
+            new_prefix = f"{prefix}.{k}" if prefix else k
+            flat.update(flatten_config(v, new_prefix))
+    elif isinstance(value, (list, tuple)):
+        for i, item in enumerate(value):
+            new_prefix = f"{prefix}[{i}]" if prefix else f"[{i}]"
+            flat.update(flatten_config(item, new_prefix))
+    else:
+        flat[prefix] = value
+    return flat
 
 
 if __name__ == "__main__":
