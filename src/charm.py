@@ -160,7 +160,7 @@ class IstioCoreCharm(ops.CharmBase):
     def _reconcile(self, _event: ops.ConfigChangedEvent):
         """Reconcile the entire state of the charm."""
         # Order here matters, we want to ensure rel data is populated before we reconcile objects/config
-        self._publish_oauth_provider_names()
+        self._publish_ext_authz_provider_names()
 
         self._reconcile_gateway_api_crds()
         self._reconcile_istio_crds()
@@ -244,25 +244,17 @@ class IstioCoreCharm(ops.CharmBase):
         krm = self._get_resource_manager(GATEWAY_API_CRDS_LABEL)
         krm.reconcile(resources)  # pyright: ignore
 
-    def _generate_provider_name(
-        self, ingress_app_name: str, oauth_info: ProviderIngressConfigData
-    ) -> str:
-        """Generate a unique provider name from the OAuth configuration."""
-        data = f"{oauth_info.oauth_service_name}:{oauth_info.oauth_port}"
-        stable_hash = hashlib.sha256(data.encode("utf-8")).hexdigest()
-        return f"oauth-{ingress_app_name}-{stable_hash}"
-
-    def _publish_oauth_provider_names(self):
-        """Publish the unique OAuth provider name for each ready relation.
+    def _publish_ext_authz_provider_names(self):
+        """Publish the unique external authorizer provider name for each ready relation.
 
         This method iterates over all relations and, if a provider is ready,
-        it publishes its unique OAuth provider name.
+        it publishes its unique external authorizer provider name.
         """
         for relation in self.ingress_config.relations:
             if self.ingress_config.is_provider_ready(relation):
-                oauth_info = self.ingress_config.get_provider_oauth_info(relation)
-                unique_name = self._generate_provider_name(relation.app.name, oauth_info)  # type: ignore
-                self.ingress_config.publish_oauth_provider_name(relation, unique_name)
+                ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
+                unique_name = generate_provider_name(relation.app.name, ext_authz_info)  # type: ignore
+                self.ingress_config.publish_ext_authz_provider_name(relation, unique_name)
 
     def _get_control_plane_kubernetes_resource_manager(self):
         return KubernetesResourceManager(
@@ -295,79 +287,59 @@ class IstioCoreCharm(ops.CharmBase):
         )
 
     def _workload_tracing_provider(self) -> Tuple[List[Any], Dict[str, Any]]:
-        """Return a tuple with a list containing the tracing provider and global tracing settings."""
-        providers = []
-        global_config = {}
-        if self.workload_tracing.is_ready():
-            workload_tracing_endpoint = self.workload_tracing.get_endpoint("otlp_grpc")
-            if workload_tracing_endpoint:
-                parsed = urlparse(f"//{workload_tracing_endpoint}")
-                providers.append(
-                    {
-                        "name": "otel-tracing",
-                        "opentelemetry": {
-                            "port": parsed.port,
-                            "service": parsed.hostname,
-                        },
-                    }
-                )
-                global_config = {
-                    "meshConfig.enableTracing": "true",
-                    "meshConfig.defaultProviders.tracing": "otel-tracing",
-                    "meshConfig.defaultConfig.tracing.sampling": 100.0,
-                }
-        return providers, global_config
+        """Return a tuple with the tracing provider and global tracing settings as dictionaries."""
+        if not (endpoint := self.workload_tracing.get_endpoint("otlp_grpc")):
+            return [], {}
+
+        parsed = urlparse(f"//{endpoint}")
+        provider = {
+            "name": "otel-tracing",
+            "opentelemetry": {
+                "port": parsed.port,
+                "service": parsed.hostname,
+            },
+        }
+        global_config = {
+            "meshConfig.enableTracing": "true",
+            "meshConfig.defaultProviders.tracing[0]": "otel-tracing",
+            "meshConfig.defaultConfig.tracing.sampling": 100.0,
+        }
+        return [provider], global_config
 
     def _external_authorizer_providers(self) -> List[Dict[str, Any]]:
         """Return a list of external authorizers provider configurations."""
         providers = []
         for relation in self.ingress_config.relations:
             if self.ingress_config.is_provider_ready(relation):
-                oauth_info = self.ingress_config.get_provider_oauth_info(relation)
-                oauth_name = self._generate_provider_name(relation.app.name, oauth_info)  # type: ignore
-                if oauth_name and oauth_info:
-                    providers.append(
-                        {
-                            "name": oauth_name,
-                            "envoyExtAuthzHttp": {
-                                "service": oauth_info.oauth_service_name,
-                                "port": oauth_info.oauth_port,
-                                "includeRequestHeadersInCheck": ["authorization", "cookie"],
-                                "headersToUpstreamOnAllow": [
-                                    "authorization",
-                                    "path",
-                                    "x-auth-request-user",
-                                    "x-auth-request-email",
-                                    "x-auth-request-access-token",
-                                ],
-                                "headersToDownstreamOnAllow": ["set-cookie"],
-                                "headersToDownstreamOnDeny": ["content-type", "set-cookie"],
-                            },
-                        }
-                    )
+                ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
+                ext_authz_name = generate_provider_name(relation.app.name, ext_authz_info)  # type: ignore
+                providers.append(
+                    {
+                        "name": ext_authz_name,
+                        "envoyExtAuthzHttp": {
+                            "service": ext_authz_info.ext_authz_service_name,  # type: ignore
+                            "port": ext_authz_info.ext_authz_port,  # type: ignore
+                            "includeRequestHeadersInCheck": ["authorization", "cookie"],
+                            "headersToUpstreamOnAllow": [
+                                "authorization",
+                                "path",
+                                "x-auth-request-user",
+                                "x-auth-request-email",
+                                "x-auth-request-access-token",
+                            ],
+                            "headersToDownstreamOnAllow": ["set-cookie"],
+                            "headersToDownstreamOnDeny": ["content-type", "set-cookie"],
+                        },
+                    }
+                )
         return providers
-
-    def _flatten_config(self, value: Any, prefix: str = "") -> Dict[str, Any]:
-        """Recursively flatten a nested dictionary or list into a dictionary of key/value pairs."""
-        flat: Dict[str, Any] = {}
-        if isinstance(value, dict):
-            for k, v in value.items():
-                new_prefix = f"{prefix}.{k}" if prefix else k
-                flat.update(self._flatten_config(v, new_prefix))
-        elif isinstance(value, list):
-            for i, item in enumerate(value):
-                new_prefix = f"{prefix}[{i}]"
-                flat.update(self._flatten_config(item, new_prefix))
-        else:
-            flat[prefix] = value
-        return flat
 
     def _build_extension_providers_config(self, providers: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Build a flat configuration dictionary for all extension providers by flattening provider objects."""
         config: Dict[str, Any] = {}
         for idx, provider in enumerate(providers):
             prefix = f"meshConfig.extensionProviders[{idx}]"
-            flat = self._flatten_config(provider, prefix)
+            flat = flatten_config(provider, prefix)
             config.update(flat)
         return config
 
@@ -441,6 +413,31 @@ class IstioCoreCharm(ops.CharmBase):
     def format_labels(label_dict: Dict[str, str]) -> str:
         """Format a dictionary into a comma-separated string of key=value pairs."""
         return ",".join(f"{key}={value}" for key, value in label_dict.items())
+
+
+def generate_provider_name(
+    ingress_app_name: str, ext_authz_info: ProviderIngressConfigData
+) -> str:
+    """Generate a unique provider name from the external authorizer configuration."""
+    data = f"{ext_authz_info.ext_authz_service_name}:{ext_authz_info.ext_authz_port}"
+    stable_hash = hashlib.sha256(data.encode("utf-8")).hexdigest()
+    return f"ext_authz-{ingress_app_name}-{stable_hash}"
+
+
+def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
+    """Recursively flatten a nested dictionary or list into a dictionary of key/value pairs."""
+    flat: Dict[str, Any] = {}
+    if isinstance(value, dict):
+        for k, v in value.items():
+            new_prefix = f"{prefix}.{k}" if prefix else k
+            flat.update(flatten_config(v, new_prefix))
+    elif isinstance(value, (list, tuple)):
+        for i, item in enumerate(value):
+            new_prefix = f"{prefix}[{i}]" if prefix else f"[{i}]"
+            flat.update(flatten_config(item, new_prefix))
+    else:
+        flat[prefix] = value
+    return flat
 
 
 if __name__ == "__main__":
