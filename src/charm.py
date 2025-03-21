@@ -7,7 +7,7 @@
 
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
 import ops
@@ -261,38 +261,55 @@ class IstioCoreCharm(ops.CharmBase):
             logger=LOGGER,
         )
 
-    def _workload_tracing_config(self) -> Dict[str, str]:
-        """Set workload tracing configuration."""
-        tracing_config = {}
+    def _workload_tracing_provider(self) -> Tuple[List[Any], Dict[str, Any]]:
+        """Return a tuple with the tracing provider and global tracing settings as dictionaries."""
         if not self.workload_tracing.is_ready():
-            return tracing_config
+            return [], {}
 
-        workload_tracing_endpoint = self.workload_tracing.get_endpoint("otlp_grpc")
-        if not workload_tracing_endpoint:
-            return tracing_config
+        if not (endpoint := self.workload_tracing.get_endpoint("otlp_grpc")):
+            return [], {}
 
-        tracing_config["meshConfig.enableTracing"] = "true"
-        tracing_config["meshConfig.extensionProviders[0].name"] = "otel-tracing"
-        tracing_config["meshConfig.extensionProviders[0].opentelemetry.port"] = urlparse(
-            f"//{workload_tracing_endpoint}"
-        ).port
-        tracing_config["meshConfig.extensionProviders[0].opentelemetry.service"] = urlparse(
-            f"//{workload_tracing_endpoint}"
-        ).hostname
-        tracing_config["meshConfig.defaultProviders.tracing[0]"] = "otel-tracing"
-        tracing_config["meshConfig.defaultConfig.tracing.sampling"] = 100.0
+        parsed = urlparse(f"//{endpoint}")
+        provider = {
+            "name": "otel-tracing",
+            "opentelemetry": {
+                "port": parsed.port,
+                "service": parsed.hostname,
+            },
+        }
+        global_config = {
+            "meshConfig.enableTracing": "true",
+            "meshConfig.defaultProviders.tracing[0]": "otel-tracing",
+            "meshConfig.defaultConfig.tracing.sampling": 100.0,
+        }
+        return [provider], global_config
 
-        return tracing_config
+    def _build_extension_providers_config(self, providers: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Build a flat configuration dictionary for all extension providers by flattening provider objects."""
+        config: Dict[str, Any] = {}
+        for idx, provider in enumerate(providers):
+            prefix = f"meshConfig.extensionProviders[{idx}]"
+            flat = flatten_config(provider, prefix)
+            config.update(flat)
+        return config
 
     def _get_istioctl(self) -> Istioctl:
         """Return an initialized Istioctl instance."""
         # Default settings
         setting_overrides = {}
 
-        # Configure tracing
+        # Get tracing providers and global tracing settings.
         # TODO: If Tempo is on mesh, Istio won't be able to send traces to Tempo until https://github.com/canonical/istio-k8s-operator/issues/30 is fixed
         # (see https://istio.io/latest/docs/tasks/observability/distributed-tracing/opentelemetry/)
-        setting_overrides.update(self._workload_tracing_config())
+        tracing_providers, global_tracing = self._workload_tracing_provider()
+
+        # Combine all providers (order does not matter).
+        all_providers = tracing_providers
+
+        setting_overrides.update(self._build_extension_providers_config(all_providers))
+
+        # Merge global tracing settings (if any).
+        setting_overrides.update(global_tracing)
 
         # Enable Envoy access logs
         # (see https://istio.io/latest/docs/tasks/observability/logs/access-log/)
@@ -343,6 +360,22 @@ class IstioCoreCharm(ops.CharmBase):
     def format_labels(label_dict: Dict[str, str]) -> str:
         """Format a dictionary into a comma-separated string of key=value pairs."""
         return ",".join(f"{key}={value}" for key, value in label_dict.items())
+
+
+def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
+    """Recursively flatten a nested dictionary or list into a dictionary of key/value pairs."""
+    flat: Dict[str, Any] = {}
+    if isinstance(value, dict):
+        for k, v in value.items():
+            new_prefix = f"{prefix}.{k}" if prefix else k
+            flat.update(flatten_config(v, new_prefix))
+    elif isinstance(value, (list, tuple)):
+        for i, item in enumerate(value):
+            new_prefix = f"{prefix}[{i}]" if prefix else f"[{i}]"
+            flat.update(flatten_config(item, new_prefix))
+    else:
+        flat[prefix] = value
+    return flat
 
 
 if __name__ == "__main__":
