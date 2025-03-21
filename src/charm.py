@@ -426,7 +426,6 @@ def generate_provider_name(
     stable_hash = hashlib.sha256(data.encode("utf-8")).hexdigest()
     return f"ext_authz-{ingress_app_name}-{stable_hash}"
 
-
 def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
     """Recursively flatten a nested dictionary or list into a dictionary of key/value pairs."""
     flat: Dict[str, Any] = {}
