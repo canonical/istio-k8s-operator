@@ -11,7 +11,7 @@ from charm import IstioCoreCharm
 # Tests for _build_extension_providers_config
 #############################################
 
-=======
+
 @pytest.mark.parametrize(
     "providers, expected",
     [
@@ -45,9 +45,11 @@ def test_build_extension_providers_config(istio_core_context, providers, expecte
         result = charm._build_extension_providers_config(providers)
         assert result == expected
 
+
 ##########################################################################
 # Tests for _workload_tracing_provider & _external_authorizer_providers
 ##########################################################################
+
 
 def test_tracing_config(istio_core_context, workload_tracing):
     expected = {
@@ -69,6 +71,7 @@ def test_tracing_config(istio_core_context, workload_tracing):
         merged.update(charm._build_extension_providers_config(providers))
         merged.update(global_tracing)
         assert merged == expected
+
 
 def test_external_authorizer_config(istio_core_context, ingress_config):
     """Test that the external authorizer provider configuration is generated and flattened correctly."""
