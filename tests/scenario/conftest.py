@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from charms.tempo_coordinator_k8s.v0 import charm_tracing
-from scenario import Context, Relation
+from ops.testing import Context, Relation
 
 from src.charm import IstioCoreCharm
 
