@@ -12,6 +12,9 @@ from urllib.parse import urlparse
 
 import ops
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.istio_k8s.v0.istio_ingress_config import (
+    IngressConfigRequirer,
+)
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -112,6 +115,9 @@ class IstioCoreCharm(ops.CharmBase):
         self._charm_tracing_endpoint = (
             self.charm_tracing.get_endpoint("otlp_http") if self.charm_tracing.relations else None
         )
+        self.ingress_config = IngressConfigRequirer(
+            relation_mapping=self.model.relations, app=self.app
+        )
 
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
@@ -119,6 +125,8 @@ class IstioCoreCharm(ops.CharmBase):
         self.framework.observe(self.workload_tracing.on.endpoint_changed, self._reconcile)
         self.framework.observe(self.workload_tracing.on.endpoint_removed, self._reconcile)
         self.framework.observe(self.on.collect_unit_status, self.on_collect_status)
+        self.framework.observe(self.on["istio-ingress-config"].relation_changed, self._reconcile)
+        self.framework.observe(self.on["istio-ingress-config"].relation_broken, self._reconcile)
 
     def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
@@ -149,6 +157,9 @@ class IstioCoreCharm(ops.CharmBase):
 
     def _reconcile(self, _event: ops.ConfigChangedEvent):
         """Reconcile the entire state of the charm."""
+        # Order here matters, we want to ensure rel data is populated before we reconcile objects/config
+        self._publish_ext_authz_provider_names()
+
         self._reconcile_gateway_api_crds()
         self._reconcile_istio_crds()
         self._reconcile_control_plane()
@@ -231,6 +242,17 @@ class IstioCoreCharm(ops.CharmBase):
         krm = self._get_resource_manager(GATEWAY_API_CRDS_LABEL)
         krm.reconcile(resources)  # pyright: ignore
 
+    def _publish_ext_authz_provider_names(self):
+        """Publish the unique external authorizer provider name for each ready relation.
+
+        This method iterates over all relations and, if a provider is ready,
+        it publishes its unique external authorizer provider name.
+        """
+        for relation in self.ingress_config.relations:
+            if self.ingress_config.is_provider_ready(relation):
+                unique_name = f"ext_authz-{relation.app.name}"
+                self.ingress_config.publish_ext_authz_provider_name(relation, unique_name)
+
     def _get_control_plane_kubernetes_resource_manager(self):
         return KubernetesResourceManager(
             labels=create_charm_default_labels(
@@ -284,6 +306,33 @@ class IstioCoreCharm(ops.CharmBase):
         }
         return [provider], global_config
 
+    def _external_authorizer_providers(self) -> List[Dict[str, Any]]:
+        """Return a list of external authorizers provider configurations."""
+        providers = []
+        for relation in self.ingress_config.relations:
+            if self.ingress_config.is_provider_ready(relation):
+                ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
+                providers.append(
+                    {
+                        "name": f"ext_authz-{relation.app.name}",
+                        "envoyExtAuthzHttp": {
+                            "service": ext_authz_info.ext_authz_service_name,  # type: ignore
+                            "port": ext_authz_info.ext_authz_port,  # type: ignore
+                            "includeRequestHeadersInCheck": ["authorization", "cookie"],
+                            "headersToUpstreamOnAllow": [
+                                "authorization",
+                                "path",
+                                "x-auth-request-user",
+                                "x-auth-request-email",
+                                "x-auth-request-access-token",
+                            ],
+                            "headersToDownstreamOnAllow": ["set-cookie"],
+                            "headersToDownstreamOnDeny": ["content-type", "set-cookie"],
+                        },
+                    }
+                )
+        return providers
+
     def _build_extension_providers_config(self, providers: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Build a flat configuration dictionary for all extension providers by flattening provider objects."""
         config: Dict[str, Any] = {}
@@ -303,8 +352,11 @@ class IstioCoreCharm(ops.CharmBase):
         # (see https://istio.io/latest/docs/tasks/observability/distributed-tracing/opentelemetry/)
         tracing_providers, global_tracing = self._workload_tracing_provider()
 
+        # Get external authorizers providers.
+        external_providers = self._external_authorizer_providers()
+
         # Combine all providers (order does not matter).
-        all_providers = tracing_providers
+        all_providers = tracing_providers + external_providers
 
         setting_overrides.update(self._build_extension_providers_config(all_providers))
 
