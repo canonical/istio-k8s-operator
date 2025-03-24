@@ -76,14 +76,14 @@ def test_tracing_config(istio_core_context, workload_tracing):
 def test_external_authorizer_config(istio_core_context, ingress_config):
     """Test that the external authorizer provider configuration is generated and flattened correctly."""
     state = State(relations=[ingress_config], leader=True)
-    with istio_core_context(istio_core_context.on.config_changed(), state) as mgr:
+    with istio_core_context(istio_core_context.on.update_status(), state) as mgr:
         charm: IstioCoreCharm = mgr.charm
 
         external_providers = charm._external_authorizer_providers()
         flattened = charm._build_extension_providers_config(external_providers)
 
         expected = {
-            "meshConfig.extensionProviders[0].name": "ext_authz-remote-d5881f05ed37db355557d3ad83ff8d6e0b0a473fc76446d611fd3a42dab9bc87",
+            "meshConfig.extensionProviders[0].name": "ext_authz-remote",
             "meshConfig.extensionProviders[0].envoyExtAuthzHttp.service": "oauth-service",
             "meshConfig.extensionProviders[0].envoyExtAuthzHttp.port": "8080",
             "meshConfig.extensionProviders[0].envoyExtAuthzHttp.includeRequestHeadersInCheck[0]": "authorization",
@@ -123,7 +123,7 @@ def test_combined_extension_providers_config(istio_core_context, workload_tracin
             "meshConfig.extensionProviders[0].opentelemetry.port": 4317,
             "meshConfig.extensionProviders[0].opentelemetry.service": "endpoint.namespace.svc.cluster.local",
             # External authorizer provider (index 1)
-            "meshConfig.extensionProviders[1].name": "ext_authz-remote-d5881f05ed37db355557d3ad83ff8d6e0b0a473fc76446d611fd3a42dab9bc87",
+            "meshConfig.extensionProviders[1].name": "ext_authz-remote",
             "meshConfig.extensionProviders[1].envoyExtAuthzHttp.service": "oauth-service",
             "meshConfig.extensionProviders[1].envoyExtAuthzHttp.port": "8080",
             "meshConfig.extensionProviders[1].envoyExtAuthzHttp.includeRequestHeadersInCheck[0]": "authorization",

@@ -5,7 +5,6 @@
 
 """A Juju charm for managing the Istio service mesh control plane."""
 
-import hashlib
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -15,7 +14,6 @@ import ops
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.istio_k8s.v0.istio_ingress_config import (
     IngressConfigRequirer,
-    ProviderIngressConfigData,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
@@ -252,8 +250,7 @@ class IstioCoreCharm(ops.CharmBase):
         """
         for relation in self.ingress_config.relations:
             if self.ingress_config.is_provider_ready(relation):
-                ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
-                unique_name = generate_provider_name(relation.app.name, ext_authz_info)  # type: ignore
+                unique_name = f"ext_authz-{relation.app.name}"
                 self.ingress_config.publish_ext_authz_provider_name(relation, unique_name)
 
     def _get_control_plane_kubernetes_resource_manager(self):
@@ -315,10 +312,9 @@ class IstioCoreCharm(ops.CharmBase):
         for relation in self.ingress_config.relations:
             if self.ingress_config.is_provider_ready(relation):
                 ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
-                ext_authz_name = generate_provider_name(relation.app.name, ext_authz_info)  # type: ignore
                 providers.append(
                     {
-                        "name": ext_authz_name,
+                        "name": f"ext_authz-{relation.app.name}",
                         "envoyExtAuthzHttp": {
                             "service": ext_authz_info.ext_authz_service_name,  # type: ignore
                             "port": ext_authz_info.ext_authz_port,  # type: ignore
@@ -416,15 +412,6 @@ class IstioCoreCharm(ops.CharmBase):
     def format_labels(label_dict: Dict[str, str]) -> str:
         """Format a dictionary into a comma-separated string of key=value pairs."""
         return ",".join(f"{key}={value}" for key, value in label_dict.items())
-
-
-def generate_provider_name(
-    ingress_app_name: str, ext_authz_info: ProviderIngressConfigData
-) -> str:
-    """Generate a unique provider name from the external authorizer configuration."""
-    data = f"{ext_authz_info.ext_authz_service_name}:{ext_authz_info.ext_authz_port}"
-    stable_hash = hashlib.sha256(data.encode("utf-8")).hexdigest()
-    return f"ext_authz-{ingress_app_name}-{stable_hash}"
 
 
 def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
