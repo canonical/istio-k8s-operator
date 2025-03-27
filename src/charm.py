@@ -312,6 +312,10 @@ class IstioCoreCharm(ops.CharmBase):
         for relation in self.ingress_config.relations:
             if self.ingress_config.is_provider_ready(relation):
                 ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
+                # TODO: Remove the below when #?? is fixed
+                # If fake config is detected, return an empty list immediately.
+                if is_fake_authz_config(ext_authz_info):
+                    return providers
                 providers.append(
                     {
                         "name": f"ext_authz-{relation.app.name}",
@@ -428,6 +432,14 @@ def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
     else:
         flat[prefix] = value
     return flat
+
+
+def is_fake_authz_config(ext_authz_info) -> bool:
+    """Check if the provided external authorization configuration has fake values."""
+    return (
+        ext_authz_info.ext_authz_port == "fake_port"
+        and ext_authz_info.ext_authz_service_name == "fake_host"
+    )
 
 
 if __name__ == "__main__":
