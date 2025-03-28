@@ -15,6 +15,7 @@ from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.istio_k8s.v0.istio_ingress_config import (
     IngressConfigRequirer,
 )
+from charms.istio_k8s.v0.istio_metadata import IstioMetadataProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -119,6 +120,11 @@ class IstioCoreCharm(ops.CharmBase):
             relation_mapping=self.model.relations, app=self.app
         )
 
+        self.istio_metadata = IstioMetadataProvider(
+            relation_mapping=self.model.relations,
+            app=self.app,
+        )
+
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.metrics_proxy_pebble_ready, self._reconcile)
@@ -127,6 +133,9 @@ class IstioCoreCharm(ops.CharmBase):
         self.framework.observe(self.on.collect_unit_status, self.on_collect_status)
         self.framework.observe(self.on["istio-ingress-config"].relation_changed, self._reconcile)
         self.framework.observe(self.on["istio-ingress-config"].relation_broken, self._reconcile)
+        # For istio-metadata
+        self.framework.observe(self.on["istio-metadata"].relation_joined, self._reconcile)
+        self.framework.observe(self.on.leader_elected, self._reconcile)
 
     def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
@@ -159,6 +168,7 @@ class IstioCoreCharm(ops.CharmBase):
         """Reconcile the entire state of the charm."""
         # Order here matters, we want to ensure rel data is populated before we reconcile objects/config
         self._publish_ext_authz_provider_names()
+        self._publish_istio_metadata()
 
         self._reconcile_gateway_api_crds()
         self._reconcile_istio_crds()
@@ -252,6 +262,10 @@ class IstioCoreCharm(ops.CharmBase):
             if self.ingress_config.is_provider_ready(relation):
                 unique_name = f"ext_authz-{relation.app.name}"
                 self.ingress_config.publish_ext_authz_provider_name(relation, unique_name)
+
+    def _publish_istio_metadata(self):
+        """Publish our metadata to all related applications."""
+        self.istio_metadata.publish(root_namespace=self.model.name)
 
     def _get_control_plane_kubernetes_resource_manager(self):
         return KubernetesResourceManager(
