@@ -93,7 +93,8 @@ class ProviderIngressConfigData(BaseModel):
     )
 
     @field_validator("ext_authz_port")
-    def validate_ext_authz_port(self, port: Optional[str]) -> Optional[str]:
+    @classmethod
+    def validate_ext_authz_port(cls, port: Optional[str]) -> Optional[str]:
         """Ensure port is convertible to int."""
         if port is None:
             return port
