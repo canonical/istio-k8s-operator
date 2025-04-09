@@ -65,17 +65,24 @@ def test_istio_metadata_provider_sends_data_correctly(data, istio_metadata_provi
     relations = [istio_metadata_relation]
     state = State(relations=relations, leader=True)
 
+    state_out = None
     # Act
     with istio_metadata_provider_context(
         # construct a charm using an event that won't trigger anything here
         istio_metadata_provider_context.on.update_status(),
         state=state,
     ) as manager:
+        # Manually do a .publish() to simulate the publish, but also do .run() to generate the state_out that we need
+        # to inspect the relation data
         manager.charm.relation_provider.publish(**data.model_dump())
+        state_out = manager.run()
 
     # Assert
     # Convert local_app_data to TempoApiAppData for comparison
-    actual = IstioMetadataAppData.model_validate(dict(istio_metadata_relation.local_app_data))
+    actual = IstioMetadataAppData.model_validate(
+        dict(state_out.get_relation(istio_metadata_relation.id).local_app_data)
+    )
+
     assert actual == data
 
 
