@@ -73,7 +73,7 @@ DEFAULT_RELATION_NAME = "istio-ingress-config"
 PYDEPS = ["pydantic>=2"]
 
 FAKE_EXT_AUTHZ_SERVICE_NAME = "fake_host"
-FAKE_EXT_AUTHZ_PORT = "fake_port"
+FAKE_EXT_AUTHZ_PORT = "5432"
 
 log = logging.getLogger(__name__)
 
@@ -166,8 +166,11 @@ class IngressConfigProvider:
             databag.update(data)
             log.debug("Published provider data: %s to relation: %s", data, relation)
 
-    def publish_fake_authz_config(self) -> None:
-        """Publish a fake external authorization configuration to all related applications."""
+    def clear(self) -> None:
+        """Clear the local application databag."""
+        # Workaround for https://github.com/juju/juju/issues/19474:
+        # TODO: switch the below to databag.clear() when issue is fixed
+        # We cannot clear a databag in cross-model relations, so we publish a fake config instead.
         self.publish(
             ext_authz_service_name=FAKE_EXT_AUTHZ_SERVICE_NAME,
             ext_authz_port=FAKE_EXT_AUTHZ_PORT,
@@ -192,7 +195,7 @@ class IngressConfigProvider:
             log.debug("Failed to validate requirer data: %s", e)
             return None
 
-    def is_requirer_ready(self) -> bool:
+    def is_ready(self) -> bool:
         """Guard to check if the generated external authorizer provider name is present.
 
         Returns:
@@ -276,6 +279,9 @@ class IngressConfigRequirer:
         Returns:
             True if any of the provider relations contains fake authz configuration, else False.
         """
+        # Workaround for https://github.com/juju/juju/issues/19474:
+        # TODO: remove this function entirely as it becomes redunant when issue is fixed
+        # We cannot clear a databag in cross-model relations, so we publish a fake config instead.
         provider_info = self.get_provider_ext_authz_info(relation)
         if provider_info is not None:
             if (
@@ -285,7 +291,7 @@ class IngressConfigRequirer:
                 return True
         return False
 
-    def is_provider_ready(self, relation: Relation) -> bool:
+    def is_ready(self, relation: Relation) -> bool:
         """Guard to check if the provider has published its external authorizer service configuration.
 
         Args:

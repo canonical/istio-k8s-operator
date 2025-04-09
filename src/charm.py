@@ -259,7 +259,7 @@ class IstioCoreCharm(ops.CharmBase):
         it publishes its unique external authorizer provider name.
         """
         for relation in self.ingress_config.relations:
-            if self.ingress_config.is_provider_ready(relation):
+            if self.ingress_config.is_ready(relation):
                 unique_name = f"ext_authz-{relation.app.name}"
                 self.ingress_config.publish_ext_authz_provider_name(relation, unique_name)
 
@@ -324,12 +324,14 @@ class IstioCoreCharm(ops.CharmBase):
         """Return a list of external authorizers provider configurations."""
         providers = []
         for relation in self.ingress_config.relations:
-            if self.ingress_config.is_provider_ready(relation):
-                ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
-                # TODO: Remove the below when #?? is fixed
+            if self.ingress_config.is_ready(relation):
+
+                # TODO: Remove the below when https://github.com/juju/juju/issues/19474 is fixed
                 # If fake config is detected, return an empty list immediately.
                 if self.ingress_config.is_fake_authz_config(relation):
                     return providers
+
+                ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
                 providers.append(
                     {
                         "name": f"ext_authz-{relation.app.name}",
