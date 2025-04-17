@@ -67,10 +67,12 @@ containers:
     resource: metrics-proxy-image
 
 provides:
-  metrics-endpoint:
-    interface: prometheus_scrape
   grafana-dashboard:
     interface: grafana_dashboard
+  istio-metadata:
+    interface: istio_metadata
+  metrics-endpoint:
+    interface: prometheus_scrape
 
 requires:
   charm-tracing:
@@ -88,6 +90,11 @@ requires:
       the waypoint proxy charm (i.e https://github.com/canonical/istio-beacon-k8s-operator) with --model-on-mesh=true
       to collect traces for all workloads on the mesh. Alternatively, if you prefer to limit tracing to specific workloads, 
       you can relate the beacon charm to a particular charm instead of applying --model-on-mesh=true to the entire model.
+  istio-ingress-config:
+    interface: istio_ingress_config
+    description: |
+      Provides an interface for exchanging Istio ingress configuration,
+      including external authorizer configuration details.
 
 parts:
   charm:
