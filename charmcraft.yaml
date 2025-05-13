@@ -86,7 +86,7 @@ parts:
     source: .
     plugin: uv
     build-packages: [git]
-    build-snape: [astral-uv]
+    build-snaps: [astral-uv]
     override-build: |
       craftctl default
       git describe --always > $CRAFT_PART_INSTALL/version
