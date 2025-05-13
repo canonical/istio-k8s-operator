@@ -3,93 +3,142 @@
 # See LICENSE file for licensing details.
 
 import pytest
+from scenario import State
 
-from charm import flatten_config
+from charm import IstioCoreCharm
+
+#############################################
+# Tests for _build_extension_providers_config
+#############################################
 
 
 @pytest.mark.parametrize(
-    "data, prefix, expected",
+    "providers, expected",
     [
-        # Flat dictionary with a prefix
+        # Empty providers list returns an empty configuration.
+        ([], {}),
+        # Single provider: should be flattened and prefixed correctly.
         (
-            {"a": "value1", "b": "value2"},
-            "provider[0]",
+            [{"name": "test", "config": {"port": "1234"}}],
             {
-                "provider[0].a": "value1",
-                "provider[0].b": "value2",
+                "meshConfig.extensionProviders[0].name": "test",
+                "meshConfig.extensionProviders[0].config.port": "1234",
             },
         ),
-        # Nested dictionary with a prefix
+        # Multiple providers: each provider is flattened with its respective prefix.
         (
-            {"a": {"b": 1, "c": {"d": "x"}}, "e": 2},
-            "prefix",
+            [{"name": "prov1", "config": {"a": 1}}, {"name": "prov2", "config": {"b": 2}}],
             {
-                "prefix.a.b": 1,
-                "prefix.a.c.d": "x",
-                "prefix.e": 2,
+                "meshConfig.extensionProviders[0].name": "prov1",
+                "meshConfig.extensionProviders[0].config.a": 1,
+                "meshConfig.extensionProviders[1].name": "prov2",
+                "meshConfig.extensionProviders[1].config.b": 2,
             },
         ),
-        # Empty dictionary returns an empty dictionary
-        ({}, "p", {}),
-        # Dictionary with list values; each list item gets an index
-        (
-            {"a": 1, "b": ["1", "2", "3"], "c": ["1", "2"]},
-            "provider[1]",
-            {
-                "provider[1].a": 1,
-                "provider[1].b[0]": "1",
-                "provider[1].b[1]": "2",
-                "provider[1].b[2]": "3",
-                "provider[1].c[0]": "1",
-                "provider[1].c[1]": "2",
-            },
-        ),
-        # Dictionary with tuple values; each tuple item gets an index
-        (
-            {"x": (10, 20), "y": ("a", "b", "c")},
-            "provider",
-            {
-                "provider.x[0]": 10,
-                "provider.x[1]": 20,
-                "provider.y[0]": "a",
-                "provider.y[1]": "b",
-                "provider.y[2]": "c",
-            },
-        ),
-        # Flat data structure with an empty prefix produces keys without a leading dot
-        (
-            {"a": 1, "b": ["1", "2", "3"], "c": ["1", "2"]},
-            "",
-            {
-                "a": 1,
-                "b[0]": "1",
-                "b[1]": "2",
-                "b[2]": "3",
-                "c[0]": "1",
-                "c[1]": "2",
-            },
-        ),
-        # Nested data structure with an empty prefix produces keys without a leading dot
-        (
-            {"a": {"b": 1}, "c": ["1", "2", "3"], "d": {"e": ["1", "2", "3"]}},
-            "",
-            {
-                "a.b": 1,
-                "c[0]": "1",
-                "c[1]": "2",
-                "c[2]": "3",
-                "d.e[0]": "1",
-                "d.e[1]": "2",
-                "d.e[2]": "3",
-            },
-        ),
-        # Primitive value with a prefix
-        (42, "number", {"number": 42}),
-        # Primitive value with an empty prefix returns a dict with an empty key
-        ("primitive", "", {"": "primitive"}),
     ],
 )
-def test_flatten_config(data, prefix, expected):
-    """Parameterized tests for the flatten_config function."""
-    result = flatten_config(data, prefix)
-    assert result == expected
+def test_build_extension_providers_config(istio_core_context, providers, expected):
+    """Parameterized test for the _build_extension_providers_config method."""
+    state = State(relations=[])
+    with istio_core_context(istio_core_context.on.update_status(), state) as mgr:
+        charm: IstioCoreCharm = mgr.charm
+        result = charm._build_extension_providers_config(providers)
+        assert result == expected
+
+
+##########################################################################
+# Tests for _workload_tracing_provider & _external_authorizer_providers
+##########################################################################
+
+
+def test_tracing_config(istio_core_context, workload_tracing):
+    expected = {
+        "meshConfig.enableTracing": "true",
+        "meshConfig.extensionProviders[0].name": "otel-tracing",
+        "meshConfig.extensionProviders[0].opentelemetry.port": 4317,
+        "meshConfig.extensionProviders[0].opentelemetry.service": "endpoint.namespace.svc.cluster.local",
+        "meshConfig.defaultProviders.tracing[0]": "otel-tracing",
+        "meshConfig.defaultConfig.tracing.sampling": 100.0,
+    }
+    state = State(relations=[workload_tracing])
+    with istio_core_context(istio_core_context.on.update_status(), state) as mgr:
+        charm: IstioCoreCharm = mgr.charm
+        mgr.run()
+        # Retrieve the tuple (providers, global_tracing) from the charm.
+        providers, global_tracing = charm._workload_tracing_provider()
+        # Merge the flattened extension providers and global tracing settings.
+        merged = {}
+        merged.update(charm._build_extension_providers_config(providers))
+        merged.update(global_tracing)
+        assert merged == expected
+
+
+def test_external_authorizer_config(istio_core_context, ingress_config):
+    """Test that the external authorizer provider configuration is generated and flattened correctly."""
+    state = State(relations=[ingress_config], leader=True)
+    with istio_core_context(istio_core_context.on.update_status(), state) as mgr:
+        charm: IstioCoreCharm = mgr.charm
+
+        external_providers = charm._external_authorizer_providers()
+        flattened = charm._build_extension_providers_config(external_providers)
+
+        expected = {
+            "meshConfig.extensionProviders[0].name": "ext_authz-remote",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.service": "oauth-service",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.port": "8080",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.includeRequestHeadersInCheck[0]": "authorization",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.includeRequestHeadersInCheck[1]": "cookie",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.headersToUpstreamOnAllow[0]": "authorization",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.headersToUpstreamOnAllow[1]": "path",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.headersToUpstreamOnAllow[2]": "x-auth-request-user",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.headersToUpstreamOnAllow[3]": "x-auth-request-email",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.headersToUpstreamOnAllow[4]": "x-auth-request-access-token",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.headersToDownstreamOnAllow[0]": "set-cookie",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.headersToDownstreamOnDeny[0]": "content-type",
+            "meshConfig.extensionProviders[0].envoyExtAuthzHttp.headersToDownstreamOnDeny[1]": "set-cookie",
+        }
+        assert flattened == expected
+
+
+def test_combined_extension_providers_config(istio_core_context, workload_tracing, ingress_config):
+    """Test that the combined configuration includes both tracing and external authorizer providers."""
+    state = State(relations=[workload_tracing, ingress_config], leader=True)
+    with istio_core_context(istio_core_context.on.config_changed(), state) as mgr:
+        charm: IstioCoreCharm = mgr.charm
+        mgr.run()
+
+        # Retrieve providers.
+        tracing_providers, global_tracing = charm._workload_tracing_provider()
+        external_providers = charm._external_authorizer_providers()
+        all_providers = tracing_providers + external_providers
+
+        # Merge the flattened configuration from all providers with the global tracing settings.
+        merged = {}
+        merged.update(charm._build_extension_providers_config(all_providers))
+        merged.update(global_tracing)
+
+        expected = {
+            # Tracing provider (index 0)
+            "meshConfig.extensionProviders[0].name": "otel-tracing",
+            "meshConfig.extensionProviders[0].opentelemetry.port": 4317,
+            "meshConfig.extensionProviders[0].opentelemetry.service": "endpoint.namespace.svc.cluster.local",
+            # External authorizer provider (index 1)
+            "meshConfig.extensionProviders[1].name": "ext_authz-remote",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.service": "oauth-service",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.port": "8080",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.includeRequestHeadersInCheck[0]": "authorization",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.includeRequestHeadersInCheck[1]": "cookie",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.headersToUpstreamOnAllow[0]": "authorization",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.headersToUpstreamOnAllow[1]": "path",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.headersToUpstreamOnAllow[2]": "x-auth-request-user",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.headersToUpstreamOnAllow[3]": "x-auth-request-email",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.headersToUpstreamOnAllow[4]": "x-auth-request-access-token",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.headersToDownstreamOnAllow[0]": "set-cookie",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.headersToDownstreamOnDeny[0]": "content-type",
+            "meshConfig.extensionProviders[1].envoyExtAuthzHttp.headersToDownstreamOnDeny[1]": "set-cookie",
+            # Global tracing configuration.
+            "meshConfig.enableTracing": "true",
+            "meshConfig.defaultProviders.tracing[0]": "otel-tracing",
+            "meshConfig.defaultConfig.tracing.sampling": 100.0,
+        }
+        assert merged == expected
