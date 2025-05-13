@@ -2,8 +2,10 @@
 # See LICENSE file for licensing details.
 import functools
 import logging
+import os
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -50,13 +52,6 @@ def timed_memoizer(func):
 @pytest.fixture(scope="module")
 @timed_memoizer
 async def istio_core_charm(ops_test):
-    count = 0
-    while True:
-        try:
-            return await ops_test.build_charm(".", verbosity="debug")
-        except RuntimeError:
-            logger.warning("Failed to build charm. Trying again!")
-            count += 1
-
-            if count == 3:
-                raise
+    if charm_file := os.environ.get("CHARM_PATH"):
+        return Path(charm_file)
+    return await ops_test.build_charm(".")
