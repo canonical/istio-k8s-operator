@@ -2,8 +2,10 @@
 # See LICENSE file for licensing details.
 import functools
 import logging
+import os
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
@@ -52,5 +54,4 @@ def timed_memoizer(func):
 async def istio_core_charm(ops_test):
     if charm_file := os.environ.get("CHARM_PATH"):
         return Path(charm_file)
-    charm = await ops_test.build_charm(".")
-    return charm
+    return await ops_test.build_charm(".")
