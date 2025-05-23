@@ -126,6 +126,7 @@ class IstioCoreCharm(ops.CharmBase):
         )
 
         self.framework.observe(self.on.config_changed, self._reconcile)
+        self.framework.observe(self.on.start, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.metrics_proxy_pebble_ready, self._reconcile)
         self.framework.observe(self.workload_tracing.on.endpoint_changed, self._reconcile)
