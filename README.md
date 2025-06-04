@@ -16,7 +16,7 @@ Typically, Istio is deployed to the `istio-system` namespace without any other a
 
 ```bash
 juju add-model istio-system
-juju deploy istio-core-k8s --trust
+juju deploy istio-k8s --trust
 ```
 
 This deploys the Istio control plane, which can then be used by anything in the Kubernetes cluster.  To get started from here, see:
