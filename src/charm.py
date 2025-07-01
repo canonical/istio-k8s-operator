@@ -5,13 +5,18 @@
 
 """A Juju charm for managing the Istio service mesh control plane."""
 
+import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
 import ops
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.istio_k8s.v0.istio_ingress_config import (
+    IngressConfigRequirer,
+)
+from charms.istio_k8s.v0.istio_metadata import IstioMetadataProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
@@ -35,6 +40,7 @@ from lightkube.resources.rbac_authorization_v1 import (
     RoleBinding,
 )
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
+from ops import StatusBase
 from ops.pebble import ChangeError, Layer
 
 from config import CharmConfig
@@ -90,9 +96,7 @@ class IstioCoreCharm(ops.CharmBase):
             ISTIO_CRDS_LABEL: self._get_crds_kubernetes_resource_manager,
             GATEWAY_API_CRDS_LABEL: self._get_gateway_apis_kubernetes_resource_manager,
         }
-        self.telemetry_labels = {
-            f"charms.canonical.com/{self.model.name}.{self.app.name}.telemetry": "aggregated"
-        }
+        self.telemetry_labels = generate_telemetry_labels(self.app.name, self.model.name)
         self._lightkube_field_manager: str = self.app.name
 
         # Configure Observability
@@ -111,12 +115,27 @@ class IstioCoreCharm(ops.CharmBase):
         self._charm_tracing_endpoint = (
             self.charm_tracing.get_endpoint("otlp_http") if self.charm_tracing.relations else None
         )
+        self.ingress_config = IngressConfigRequirer(
+            relation_mapping=self.model.relations, app=self.app
+        )
+
+        self.istio_metadata = IstioMetadataProvider(
+            relation_mapping=self.model.relations,
+            app=self.app,
+        )
 
         self.framework.observe(self.on.config_changed, self._reconcile)
+        self.framework.observe(self.on.start, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.metrics_proxy_pebble_ready, self._reconcile)
         self.framework.observe(self.workload_tracing.on.endpoint_changed, self._reconcile)
         self.framework.observe(self.workload_tracing.on.endpoint_removed, self._reconcile)
+        self.framework.observe(self.on.collect_unit_status, self.on_collect_status)
+        self.framework.observe(self.on["istio-ingress-config"].relation_changed, self._reconcile)
+        self.framework.observe(self.on["istio-ingress-config"].relation_broken, self._reconcile)
+        # For istio-metadata
+        self.framework.observe(self.on["istio-metadata"].relation_joined, self._reconcile)
+        self.framework.observe(self.on.leader_elected, self._reconcile)
 
     def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
@@ -147,6 +166,10 @@ class IstioCoreCharm(ops.CharmBase):
 
     def _reconcile(self, _event: ops.ConfigChangedEvent):
         """Reconcile the entire state of the charm."""
+        # Order here matters, we want to ensure rel data is populated before we reconcile objects/config
+        self._publish_ext_authz_provider_names()
+        self._publish_istio_metadata()
+
         self._reconcile_gateway_api_crds()
         self._reconcile_istio_crds()
         self._reconcile_control_plane()
@@ -154,8 +177,17 @@ class IstioCoreCharm(ops.CharmBase):
         # Ensure the Pebble service is up-to-date
         self._setup_proxy_pebble_service()
 
-        # TODO: check if the deployment was successful before setting charm to active
-        self.unit.status = ops.ActiveStatus()
+    def on_collect_status(self, event: ops.CollectStatusEvent):
+        """Handle the collect status event, determining the status of the charm."""
+        statuses: List[StatusBase] = []
+
+        # Check if istiod is up
+        # TODO: Implement a better check for whether the deployment is actually active.  Atm if we get to this stage, we
+        #  know everything was attempted properly and we assume it worked.
+        statuses.append(ops.ActiveStatus())
+
+        for status in statuses:
+            event.add_status(status)
 
     def _remove(self, _event: ops.RemoveEvent):
         """Remove the charm's resources."""
@@ -220,6 +252,21 @@ class IstioCoreCharm(ops.CharmBase):
         krm = self._get_resource_manager(GATEWAY_API_CRDS_LABEL)
         krm.reconcile(resources)  # pyright: ignore
 
+    def _publish_ext_authz_provider_names(self):
+        """Publish the unique external authorizer provider name for each ready relation.
+
+        This method iterates over all relations and, if a provider is ready,
+        it publishes its unique external authorizer provider name.
+        """
+        for relation in self.ingress_config.relations:
+            if self.ingress_config.is_ready(relation):
+                unique_name = f"ext_authz-{relation.app.name}"
+                self.ingress_config.publish_ext_authz_provider_name(relation, unique_name)
+
+    def _publish_istio_metadata(self):
+        """Publish our metadata to all related applications."""
+        self.istio_metadata.publish(root_namespace=self.model.name)
+
     def _get_control_plane_kubernetes_resource_manager(self):
         return KubernetesResourceManager(
             labels=create_charm_default_labels(
@@ -250,38 +297,90 @@ class IstioCoreCharm(ops.CharmBase):
             logger=LOGGER,
         )
 
-    def _workload_tracing_config(self) -> Dict[str, str]:
-        """Set workload tracing configuration."""
-        tracing_config = {}
+    def _workload_tracing_provider(self) -> Tuple[List[Any], Dict[str, Any]]:
+        """Return a tuple with the tracing provider and global tracing settings as dictionaries."""
         if not self.workload_tracing.is_ready():
-            return tracing_config
+            return [], {}
 
-        workload_tracing_endpoint = self.workload_tracing.get_endpoint("otlp_grpc")
-        if not workload_tracing_endpoint:
-            return tracing_config
+        if not (endpoint := self.workload_tracing.get_endpoint("otlp_grpc")):
+            return [], {}
 
-        tracing_config["meshConfig.enableTracing"] = "true"
-        tracing_config["meshConfig.extensionProviders[0].name"] = "otel-tracing"
-        tracing_config["meshConfig.extensionProviders[0].opentelemetry.port"] = urlparse(
-            f"//{workload_tracing_endpoint}"
-        ).port
-        tracing_config["meshConfig.extensionProviders[0].opentelemetry.service"] = urlparse(
-            f"//{workload_tracing_endpoint}"
-        ).hostname
-        tracing_config["meshConfig.defaultProviders.tracing[0]"] = "otel-tracing"
-        tracing_config["meshConfig.defaultConfig.tracing.sampling"] = 100.0
+        parsed = urlparse(f"//{endpoint}")
+        provider = {
+            "name": "otel-tracing",
+            "opentelemetry": {
+                "port": parsed.port,
+                "service": parsed.hostname,
+            },
+        }
+        global_config = {
+            "meshConfig.enableTracing": "true",
+            "meshConfig.defaultProviders.tracing[0]": "otel-tracing",
+            "meshConfig.defaultConfig.tracing.sampling": 100.0,
+        }
+        return [provider], global_config
 
-        return tracing_config
+    def _external_authorizer_providers(self) -> List[Dict[str, Any]]:
+        """Return a list of external authorizers provider configurations."""
+        providers = []
+        for relation in self.ingress_config.relations:
+            if self.ingress_config.is_ready(relation):
+                # TODO: Remove the below when https://github.com/juju/juju/issues/19474 is fixed
+                # If fake config is detected, return an empty list immediately.
+                if self.ingress_config.is_fake_authz_config(relation):
+                    return providers
+
+                ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
+                providers.append(
+                    {
+                        "name": f"ext_authz-{relation.app.name}",
+                        "envoyExtAuthzHttp": {
+                            "service": ext_authz_info.ext_authz_service_name,  # type: ignore
+                            "port": ext_authz_info.ext_authz_port,  # type: ignore
+                            "includeRequestHeadersInCheck": ["authorization", "cookie"],
+                            "headersToUpstreamOnAllow": [
+                                "authorization",
+                                "path",
+                                "x-auth-request-user",
+                                "x-auth-request-email",
+                                "x-auth-request-access-token",
+                            ],
+                            "headersToDownstreamOnAllow": ["set-cookie"],
+                            "headersToDownstreamOnDeny": ["content-type", "set-cookie"],
+                        },
+                    }
+                )
+        return providers
+
+    def _build_extension_providers_config(self, providers: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Build a flat configuration dictionary for all extension providers by flattening provider objects."""
+        config: Dict[str, Any] = {}
+        for idx, provider in enumerate(providers):
+            prefix = f"meshConfig.extensionProviders[{idx}]"
+            flat = flatten_config(provider, prefix)
+            config.update(flat)
+        return config
 
     def _get_istioctl(self) -> Istioctl:
         """Return an initialized Istioctl instance."""
         # Default settings
         setting_overrides = {}
 
-        # Configure tracing
+        # Get tracing providers and global tracing settings.
         # TODO: If Tempo is on mesh, Istio won't be able to send traces to Tempo until https://github.com/canonical/istio-k8s-operator/issues/30 is fixed
         # (see https://istio.io/latest/docs/tasks/observability/distributed-tracing/opentelemetry/)
-        setting_overrides.update(self._workload_tracing_config())
+        tracing_providers, global_tracing = self._workload_tracing_provider()
+
+        # Get external authorizers providers.
+        external_providers = self._external_authorizer_providers()
+
+        # Combine all providers (order does not matter).
+        all_providers = tracing_providers + external_providers
+
+        setting_overrides.update(self._build_extension_providers_config(all_providers))
+
+        # Merge global tracing settings (if any).
+        setting_overrides.update(global_tracing)
 
         # Enable Envoy access logs
         # (see https://istio.io/latest/docs/tasks/observability/logs/access-log/)
@@ -332,6 +431,49 @@ class IstioCoreCharm(ops.CharmBase):
     def format_labels(label_dict: Dict[str, str]) -> str:
         """Format a dictionary into a comma-separated string of key=value pairs."""
         return ",".join(f"{key}={value}" for key, value in label_dict.items())
+
+
+def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
+    """Recursively flatten a nested dictionary or list into a dictionary of key/value pairs."""
+    flat: Dict[str, Any] = {}
+    if isinstance(value, dict):
+        for k, v in value.items():
+            new_prefix = f"{prefix}.{k}" if prefix else k
+            flat.update(flatten_config(v, new_prefix))
+    elif isinstance(value, (list, tuple)):
+        for i, item in enumerate(value):
+            new_prefix = f"{prefix}[{i}]" if prefix else f"[{i}]"
+            flat.update(flatten_config(item, new_prefix))
+    else:
+        flat[prefix] = value
+    return flat
+
+
+def generate_telemetry_labels(app_name: str, model_name: str) -> Dict[str, str]:
+    """Generate telemetry labels for the application, ensuring it is always <=63 characters and usually unique.
+
+    The telemetry labels need to be unique for each application in order to prevent one application from scraping
+    another's metrics (eg: istio-beacon scraping the workloads of istio-ingress).  Ideally, this would be done by
+    including model_name and app_name in the label key or value, but Kubernetes label keys and values have a 63
+    character limit.  This, thus function returns:
+    * a label with a key that includes model_name and app_name, if that key is less than 63 characters
+    * a label with a key that is truncated to 63 characters but includes a hash of the full model_name and app_name, to
+      attempt to ensure uniqueness.
+
+    The hash is included because simply truncating the model or app names may lead to collisions.  Consider if
+    istio-beacon is deployed to two different models of names `really-long-model-name1` and `really-long-model-name2`,
+    they'd truncate to the same key.  To reduce this risk, we also include a hash of the model and app names which very
+    likely differs between two applications.
+    """
+    key = f"charms.canonical.com/{model_name}.{app_name}.telemetry"
+    if len(key) > 63:
+        # Truncate the key to fit within the 63-character limit.  Include a hash of the real model_name.app_name to
+        # avoid collisions with some other truncated key.
+        hash = hashlib.md5(f"{model_name}.{app_name}".encode()).hexdigest()[:10]
+        key = f"charms.canonical.com/{model_name[:10]}.{app_name[:10]}.{hash}.telemetry"
+    return {
+        key: "aggregated",
+    }
 
 
 if __name__ == "__main__":

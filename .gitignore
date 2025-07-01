@@ -10,3 +10,4 @@ tests/integration/*-tester/lib/
 .env
 .vscode/
 *.egg-info
+*.raw

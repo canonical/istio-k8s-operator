@@ -5,10 +5,11 @@ on:
   push:
     branches:
       - main
+      - track/**
 
 jobs:
   release:
-    uses: canonical/observability/.github/workflows/charm-release.yaml@v0
+    uses: canonical/observability/.github/workflows/charm-release.yaml@v1
     secrets: inherit
     with:
-      build-for-arm: true
+      default-track: 2

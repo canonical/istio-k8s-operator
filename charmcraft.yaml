@@ -41,36 +41,23 @@ config:
 
 assumes:
   - k8s-api
+  - juju >= 3.6
 
-bases:
-  - build-on:
-    - name: ubuntu
-      channel: "22.04"
-      architectures: ["amd64"]
-    run-on:
-    - name: ubuntu
-      channel: "22.04"
-      architectures: ["amd64"]
-  - build-on:
-    - name: ubuntu
-      channel: "22.04"
-      architectures: ["arm64"]
-    run-on:
-    - name: ubuntu
-      channel: "22.04"
-      architectures: ["arm64"]
-
-
+platforms:
+  ubuntu@24.04:amd64:
+  #ubuntu@24.04:arm64:
 
 containers:
   metrics-proxy:
     resource: metrics-proxy-image
 
 provides:
-  metrics-endpoint:
-    interface: prometheus_scrape
   grafana-dashboard:
     interface: grafana_dashboard
+  istio-metadata:
+    interface: istio_metadata
+  metrics-endpoint:
+    interface: prometheus_scrape
 
 requires:
   charm-tracing:
@@ -88,16 +75,24 @@ requires:
       the waypoint proxy charm (i.e https://github.com/canonical/istio-beacon-k8s-operator) with --model-on-mesh=true
       to collect traces for all workloads on the mesh. Alternatively, if you prefer to limit tracing to specific workloads, 
       you can relate the beacon charm to a particular charm instead of applying --model-on-mesh=true to the entire model.
+  istio-ingress-config:
+    interface: istio_ingress_config
+    description: |
+      Provides an interface for exchanging Istio ingress configuration,
+      including external authorizer configuration details.
 
 parts:
   charm:
-    plugin: charm
-    # include rustc and cargo to compile pydantic
-    build-packages: [git, rustc, cargo]
-    charm-binary-python-packages: ["pydantic>=2", "cryptography", "jsonschema", "opentelemetry-exporter-otlp-proto-http==1.21.0"]
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
+    override-build: |
+      craftctl default
+      git describe --always > $CRAFT_PART_INSTALL/version
   istioctl:
     plugin: dump
-    source: https://github.com/istio/istio/releases/download/1.24.0/istioctl-1.24.0-linux-amd64.tar.gz
+    source: https://github.com/istio/istio/releases/download/1.26.1/istioctl-1.26.1-linux-amd64.tar.gz
     source-type: tar
 
 

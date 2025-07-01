@@ -48,3 +48,15 @@ def workload_tracing():
         },
         local_app_data={"receivers": json.dumps(["otlp_grpc"])},
     )
+
+
+@pytest.fixture(scope="function")
+def ingress_config():
+    return Relation(
+        "istio-ingress-config",
+        remote_app_data={
+            "ext_authz_service_name": "oauth-service",
+            "ext_authz_port": "8080",
+        },
+        local_app_data={},
+    )
