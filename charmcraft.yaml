@@ -81,6 +81,10 @@ requires:
       Provides an interface for exchanging Istio ingress configuration,
       including external authorizer configuration details.
 
+peers:
+  peers:
+    interface: istio_k8s_peers
+
 parts:
   charm:
     source: .

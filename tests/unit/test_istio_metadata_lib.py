@@ -28,6 +28,7 @@ class IstioMetadataProviderCharm(CharmBase):
     def __init__(self, framework):
         super().__init__(framework)
         self.relation_provider = IstioMetadataProvider(
+            charm=self,
             relation_mapping=self.model.relations,
             app=self.app,
             relation_name=RELATION_NAME,  # pyright: ignore

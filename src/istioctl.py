@@ -7,6 +7,7 @@ from itertools import chain
 from typing import Dict, List, Optional
 
 import yaml
+from lightkube.core.resource import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ class Istioctl:
         args = ["install", "-y", *self._args]
         self._run(*args)
 
-    def manifest_generate(self, components: Optional[List[str]] = None) -> str:
+    def manifest_generate(self, components: Optional[List[str]] = None, overrides: Optional[List[Resource]] = None) -> str:
         """Generate Istio's manifests using the `istioctl manifest generate` command.
 
         Args:
@@ -85,6 +86,10 @@ class Istioctl:
                         by default in the profile will be included.
                         Note that this argument changed when moving to Istio 1.24 because istioctl removed the old
                         `--component` argument.
+            overrides: An optional list of lightkube Resource objects to override specific resources
+                       in the generated manifest. The default value of the spec in the istioctl generated
+                       manifest will be retained if the spec value is not included in the overriding
+                       lightkube Resource. Resources are matched by kind, metadata.namespace and metadata.name.
 
         Returns:
             (str) a YAML string of the Kubernetes manifest for Istio
@@ -95,7 +100,13 @@ class Istioctl:
             ("--set", f"components.{component}.enabled=true") for component in components
         )
         args = ["manifest", "generate", *self._args, *components_args]
-        return self._run(*args)
+        manifest_yaml = self._run(*args)
+
+        # Apply overrides if provided
+        if overrides:
+            manifest_yaml = _apply_manifest_overrides(manifest_yaml, overrides)
+
+        return manifest_yaml
 
     def precheck(self):
         """Execute `istioctl x precheck` to validate whether the environment can be updated.
@@ -208,6 +219,71 @@ def get_control_plane_version(version_dict: dict) -> str:
         raise IstioctlError(error_message_template.format(message="no control plane found"))
 
     return version
+
+
+def _apply_manifest_overrides(manifest_yaml: str, overrides: List[Resource]) -> str:
+    """Apply lightkube resource overrides to specific resources in a Kubernetes manifest.
+
+    Args:
+        manifest_yaml: The YAML string containing Kubernetes manifests
+        overrides: List of lightkube Resource objects to override matching resources
+
+    Returns:
+        The modified YAML string with overrides applied
+    """
+    documents = list(yaml.safe_load_all(manifest_yaml))
+
+    for doc in documents:
+        if doc is None:
+            continue
+
+        # Check if this document matches any override resource
+        for override in overrides:
+            if _is_same_resource(doc, override):
+                override_dict = override.to_dict()  # pyright: ignore
+                _deep_merge_dict(doc, override_dict)
+                break
+
+    return yaml.dump_all(documents, default_flow_style=False)
+
+
+def _is_same_resource(manifest_doc: dict, override_resource: Resource) -> bool:
+    """Check if a manifest document matches an override resource.
+
+    Args:
+        manifest_doc: Dictionary from the manifest YAML
+        override_resource: Lightkube Resource object
+
+    Returns:
+        True if they represent the same resource
+    """
+    # Match by kind, namespace and name
+    manifest_kind = manifest_doc.get("kind", "")
+    manifest_name = manifest_doc.get("metadata", {}).get("name", "")
+    manifest_namespace = manifest_doc.get("metadata", {}).get("namespace", "")
+
+    override_kind = override_resource.__class__.__name__
+    override_name = override_resource.metadata.name  # pyright: ignore
+    override_namespace = override_resource.metadata.namespace  # pyright: ignore
+
+    return (manifest_kind == override_kind and
+            manifest_name == override_name and
+            manifest_namespace == override_namespace)
+
+
+def _deep_merge_dict(base: dict, updates: dict) -> None:
+    """Recursively merge updates into base dict in-place.
+
+    Args:
+        base: The base dictionary to update
+        updates: Dictionary containing updates to apply
+    """
+    for key, value in updates.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            # Recursively merge nested dicts
+            _deep_merge_dict(base[key], value)
+        else:
+            base[key] = value
 
 
 def settings_dict_to_args(settings: Dict[str, Optional[str]]) -> List[str]:
