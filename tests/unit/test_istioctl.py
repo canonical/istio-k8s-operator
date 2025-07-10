@@ -6,6 +6,12 @@ from unittest.mock import MagicMock
 import pytest
 import yaml
 from jinja2 import Environment, FileSystemLoader
+from lightkube.models.autoscaling_v2 import (
+    CrossVersionObjectReference,
+    HorizontalPodAutoscalerSpec,
+)
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 
 from istioctl import (
     Istioctl,
@@ -43,6 +49,36 @@ def mocked_check_output_failing(mocked_check_output):
     mocked_check_output.return_value = None
     mocked_check_output.side_effect = cpe
 
+    yield mocked_check_output
+
+
+@pytest.fixture()
+def mocked_check_output_manifest(mocked_check_output):
+    """Mock check_output to return a sample Istio manifest."""
+    sample_manifest = f"""apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: istiod
+  namespace: {NAMESPACE}
+spec:
+  minReplicas: 1
+  maxReplicas: 5
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: istiod
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: istiod
+  namespace: {NAMESPACE}
+spec:
+  ports:
+  - port: 15010
+    name: grpc-xds
+"""
+    mocked_check_output.return_value = sample_manifest.encode(sys.stdout.encoding)
     yield mocked_check_output
 
 
@@ -151,6 +187,41 @@ def test_istioctl_manifest_error(mocked_check_output_failing):
     # Assert that we raise an error when istioctl fails
     with pytest.raises(IstioctlError):
         ictl.manifest_generate()
+
+
+def test_istioctl_manifest_with_lightkube_overrides(mocked_check_output_manifest):
+    """Test that manifest_generate correctly applies lightkube resource overrides."""
+    # Create override resource
+    hpa_override = HorizontalPodAutoscaler(
+        metadata=ObjectMeta(name='istiod', namespace=NAMESPACE),
+        spec=HorizontalPodAutoscalerSpec(
+            scaleTargetRef=CrossVersionObjectReference(
+                    apiVersion="apps/v1",
+                    kind="Deployment",
+                    name="istiod",
+            ),
+            minReplicas=2,
+            maxReplicas=10,
+        ),
+    )
+
+    ictl = Istioctl(istioctl_path=ISTIOCTL_BINARY, namespace=NAMESPACE, profile=PROFILE)
+    manifest = ictl.manifest_generate(overrides=[hpa_override])
+
+    # Verify istioctl was called correctly
+    expected_call_args = [
+        ISTIOCTL_BINARY,
+        "manifest",
+        "generate",
+    ]
+    expected_call_args.extend(EXPECTED_ISTIOCTL_FLAGS)
+    mocked_check_output_manifest.assert_called_once_with(expected_call_args)
+
+    # Verify the override was applied
+    docs = list(yaml.safe_load_all(manifest))
+    hpa_doc = next(d for d in docs if d.get('kind') == 'HorizontalPodAutoscaler')
+    assert hpa_doc['spec']['minReplicas'] == 2
+    assert hpa_doc['spec']['maxReplicas'] == 10
 
 
 @pytest.fixture()

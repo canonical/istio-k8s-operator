@@ -78,7 +78,7 @@ provides:
 import logging
 from typing import Optional
 
-from ops import Application, RelationMapping
+from ops import Application, CharmBase, RelationMapping
 from pydantic import BaseModel, Field
 
 # The unique Charmhub library identifier, never change it
@@ -90,7 +90,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 PYDEPS = ["pydantic>=2"]
 
@@ -166,6 +166,7 @@ class IstioMetadataProvider:
 
     def __init__(
         self,
+        charm: CharmBase,
         relation_mapping: RelationMapping,
         app: Application,
         relation_name: str = DEFAULT_RELATION_NAME,
@@ -178,10 +179,12 @@ class IstioMetadataProvider:
         relation_joined event.
 
         Args:
+            charm: The charm instantiating this object.
             relation_mapping: The RelationMapping of a charm (typically `self.model.relations` from within a charm object).
             app: This application.
             relation_name: The name of the relation.
         """
+        self._charm = charm
         self._charm_relation_mapping = relation_mapping
         self._app = app
         self._relation_name = relation_name
@@ -200,10 +203,12 @@ class IstioMetadataProvider:
         Args:
             root_namespace: The root namespace of the Istio deployment.
         """
-        data = IstioMetadataAppData(root_namespace=root_namespace).model_dump(
-            mode="json", by_alias=True, exclude_defaults=True, round_trip=True
-        )
+        # Only the leader unit can update the application data bag
+        if self._charm.unit.is_leader():
+            data = IstioMetadataAppData(root_namespace=root_namespace).model_dump(
+                mode="json", by_alias=True, exclude_defaults=True, round_trip=True
+            )
 
-        for relation in self.relations:
-            databag = relation.data[self._app]
-            databag.update(data)
+            for relation in self.relations:
+                databag = relation.data[self._app]
+                databag.update(data)

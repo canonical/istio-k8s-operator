@@ -24,6 +24,11 @@ from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
 from lightkube import Client, codecs  # type: ignore
 from lightkube.codecs import AnyResource
+from lightkube.models.autoscaling_v2 import (
+    CrossVersionObjectReference,
+    HorizontalPodAutoscalerSpec,
+)
+from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.admissionregistration_v1 import (
     MutatingWebhookConfiguration,
     ValidatingWebhookConfiguration,
@@ -82,7 +87,7 @@ GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
         MetricsEndpointProvider,
         GrafanaDashboardProvider,
     ],
-    # we don't add a cert because istio does TLS his way
+    # we don't add a cert because istio does TLS it's way
     # TODO: fix when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
 )
 class IstioCoreCharm(ops.CharmBase):
@@ -120,6 +125,7 @@ class IstioCoreCharm(ops.CharmBase):
         )
 
         self.istio_metadata = IstioMetadataProvider(
+            charm=self,
             relation_mapping=self.model.relations,
             app=self.app,
         )
@@ -136,6 +142,8 @@ class IstioCoreCharm(ops.CharmBase):
         # For istio-metadata
         self.framework.observe(self.on["istio-metadata"].relation_joined, self._reconcile)
         self.framework.observe(self.on.leader_elected, self._reconcile)
+        self.framework.observe(self.on["peers"].relation_changed, self._reconcile)
+        self.framework.observe(self.on["peers"].relation_departed, self._reconcile)
 
     def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
@@ -166,6 +174,9 @@ class IstioCoreCharm(ops.CharmBase):
 
     def _reconcile(self, _event: ops.ConfigChangedEvent):
         """Reconcile the entire state of the charm."""
+        # Reconciliation can only be attempted by the leader.
+        if not self.unit.is_leader():
+            return
         # Order here matters, we want to ensure rel data is populated before we reconcile objects/config
         self._publish_ext_authz_provider_names()
         self._publish_istio_metadata()
@@ -184,16 +195,20 @@ class IstioCoreCharm(ops.CharmBase):
         # Check if istiod is up
         # TODO: Implement a better check for whether the deployment is actually active.  Atm if we get to this stage, we
         #  know everything was attempted properly and we assume it worked.
-        statuses.append(ops.ActiveStatus())
+        active_status_message = ""
+        if not self.unit.is_leader():
+            active_status_message = "Backup unit; standing by for leader take over"
+        statuses.append(ops.ActiveStatus(active_status_message))
 
         for status in statuses:
             event.add_status(status)
 
     def _remove(self, _event: ops.RemoveEvent):
         """Remove the charm's resources."""
-        for name in self._resource_manager_factories:
-            krh = self._get_resource_manager(name)
-            krh.delete()
+        if self.unit.is_leader():
+            for name in self._resource_manager_factories:
+                krh = self._get_resource_manager(name)
+                krh.delete()
 
     # Properties
 
@@ -211,7 +226,6 @@ class IstioCoreCharm(ops.CharmBase):
         return Client(namespace=self.model.name, field_manager=self._lightkube_field_manager)
 
     # Helpers
-
     def _get_resource_manager(self, resource_group: str) -> KubernetesResourceManager:
         """Return an initialized KubernetesResourceManager for the given resource group."""
         return self._resource_manager_factories[resource_group]()
@@ -219,14 +233,52 @@ class IstioCoreCharm(ops.CharmBase):
     def _reconcile_control_plane(self):
         """Reconcile the control plane resources."""
         ictl = self._get_istioctl()
-        manifests = ictl.manifest_generate(components=CONTROL_PLANE_COMPONENTS)
-        resources = codecs.load_all_yaml(manifests, create_resources_for_crds=True)
+        resources = []
+        unit_count = self.model.app.planned_units()
 
-        resources = self._add_metrics_labels(resources)
+        # Reconcile an empty resource list if no units are left (unit_count < 1):
+        #  - This typically indicates an application removal event; we rely on the remove hook for cleanup.
+        #  - Attempting to reconcile with an HPA that sets replicas to zero is invalid.
+        #  - This guard exists because some events can call _reconcile before the remove hook runs,
+        #    leading to k8s validation webhook errors when planned_units is 0.
+        if unit_count > 0:
+            # Only the istiod HPA is overridden for scaling it with the charm.
+            # Refer this issue for more details: https://github.com/canonical/istio-k8s-operator/issues/22
+            hpa_override = self._construct_hpa(unit_count=unit_count)
+            manifests = ictl.manifest_generate(
+                components=CONTROL_PLANE_COMPONENTS,
+                overrides=[
+                    hpa_override,
+                ]
+            )
+
+            resources = codecs.load_all_yaml(manifests, create_resources_for_crds=True)
+            resources = self._add_metrics_labels(resources)
 
         krm = self._get_resource_manager(CONTROL_PLANE_LABEL)
         # TODO: A validating webhook raises a conflict if force=False.  Why?
         krm.reconcile(resources, force=True)  # pyright: ignore
+
+    def _construct_hpa(self, unit_count: int) -> HorizontalPodAutoscaler:
+        """Construct a HorizontalPodAutoscaler resource for istiod with required custom specs.
+
+        This HPA is used to scale the istiod workload automatically when the charm scales.
+        The scaling is achieved by setting the min and max replica settings in the HPA to be
+        the same as the unit count.
+        These hpa specs override the default manifest generated by istioctl.
+        """
+        return HorizontalPodAutoscaler(
+            metadata=ObjectMeta(name="istiod", namespace=self.model.name),
+            spec=HorizontalPodAutoscalerSpec(
+                scaleTargetRef=CrossVersionObjectReference(
+                    apiVersion="apps/v1",
+                    kind="Deployment",
+                    name="istiod",
+                ),
+                minReplicas=unit_count,
+                maxReplicas=unit_count,
+            ),
+        )
 
     def _reconcile_istio_crds(self):
         """Reconcile the Istio CRD resources."""
