@@ -11,3 +11,9 @@ tests/integration/*-tester/lib/
 .vscode/
 *.egg-info
 *.raw
+
+# Terraform files
+terraform/**/*.tfstate
+terraform/**/*.tfstate.*
+terraform/**/.terraform/
+terraform/**/.terraform.lock.hcl
