@@ -7,12 +7,18 @@ For detailed information on Istio and Canonical Service Mesh, see the [official 
 
 ## Usage
 
+Create `main.tf`:
+
 ```hcl
 module "istio" {
   source  = "git::https://github.com/canonical/istio-k8s-operator//terraform"
   model   = juju_model.k8s.name
   channel = "2/stable"
 }
+```
+
+```sh
+$ terraform apply
 ```
 
 ## Requirements
