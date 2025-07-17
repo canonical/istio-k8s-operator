@@ -13,7 +13,7 @@
  * module "istio" {
  *   source  = "git::https://github.com/canonical/istio-k8s-operator//terraform"
  *   model   = juju_model.k8s.name
- *   channel = "2/stable"
+ *   channel = "1/stable"
  * }
  * ```
  *
