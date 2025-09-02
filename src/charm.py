@@ -24,6 +24,7 @@ from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
 from lightkube import Client, codecs  # type: ignore
 from lightkube.codecs import AnyResource
+from lightkube.generic_resource import create_namespaced_resource
 from lightkube.models.autoscaling_v2 import (
     CrossVersionObjectReference,
     HorizontalPodAutoscalerSpec,
@@ -78,6 +79,16 @@ ISTIO_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml"]
 GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
 GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
+RESOURCE_TYPES = {
+    "AuthorizationPolicy": create_namespaced_resource(
+        "security.istio.io",
+        "v1",
+        "AuthorizationPolicy",
+        "authorizationpolicies",
+    ),
+}
+AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
+AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
 
 
 @trace_charm(
@@ -184,6 +195,7 @@ class IstioCoreCharm(ops.CharmBase):
         self._reconcile_gateway_api_crds()
         self._reconcile_istio_crds()
         self._reconcile_control_plane()
+        self._reconcile_authorization_policies()
 
         # Ensure the Pebble service is up-to-date
         self._setup_proxy_pebble_service()
@@ -349,6 +361,16 @@ class IstioCoreCharm(ops.CharmBase):
             logger=LOGGER,
         )
 
+    def _get_authorization_policy_resource_manager(self):
+        return KubernetesResourceManager(
+            labels=create_charm_default_labels(
+                self.app.name, self.model.name, scope=AUTHORIZATION_POLICY_LABEL
+            ),
+            resource_types=AUTHORIZATION_POLICY_RESOURCE_TYPES,  # pyright: ignore
+            lightkube_client=self.lightkube_client,
+            logger=LOGGER,
+        )
+
     def _workload_tracing_provider(self) -> Tuple[List[Any], Dict[str, Any]]:
         """Return a tuple with the tracing provider and global tracing settings as dictionaries."""
         if not self.workload_tracing.is_ready():
@@ -483,6 +505,45 @@ class IstioCoreCharm(ops.CharmBase):
     def format_labels(label_dict: Dict[str, str]) -> str:
         """Format a dictionary into a comma-separated string of key=value pairs."""
         return ",".join(f"{key}={value}" for key, value in label_dict.items())
+
+    def _reconcile_authorization_policies(self) -> None:
+        """Sync authorization policies."""
+        authorization_policies = self._build_authorization_policies()
+        krm = self._get_authorization_policy_resource_manager()
+        krm.reconcile(authorization_policies)  # type: ignore
+
+    def _build_authorization_policies(self):
+        """Build required globally managed authorization policies."""
+        authorization_policies = []
+        if self.parsed_config["global-allow-nothing-policy"]:
+            authorization_policies.append(
+                RESOURCE_TYPES["AuthorizationPolicy"](
+                    metadata=ObjectMeta(
+                        name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-l4",
+                        namespace=self.model.name,
+                    ),
+                    spec={}
+                )
+            )
+
+            authorization_policies.append(
+                RESOURCE_TYPES["AuthorizationPolicy"](
+                    metadata=ObjectMeta(
+                        name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-waypoints",
+                        namespace=self.model.name,
+                    ),
+                    spec={
+                        "targetRefs": [
+                            {
+                                "kind": "GatewayClass",
+                                "group": "gateway.networking.k8s.io",
+                                "name": "istio-waypoint",
+                            },
+                        ],
+                    },
+                )
+            )
+        return authorization_policies
 
 
 def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:

@@ -27,6 +27,8 @@ dev = [
     "pytest-asyncio==0.21.2",
     "juju",
     "pytest-operator",
+    "sh",
+    "tenacity",
 ]
 
 # Testing tools configuration
