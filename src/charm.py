@@ -515,11 +515,11 @@ class IstioCoreCharm(ops.CharmBase):
     def _build_authorization_policies(self):
         """Build required globally managed authorization policies."""
         authorization_policies = []
-        if self.parsed_config["global-allow-nothing-policy"]:
+        if self.parsed_config["hardened-mode"]:
             authorization_policies.append(
                 RESOURCE_TYPES["AuthorizationPolicy"](
                     metadata=ObjectMeta(
-                        name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-l4",
+                        name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-ztunnel",
                         namespace=self.model.name,
                     ),
                     spec={}
@@ -529,7 +529,7 @@ class IstioCoreCharm(ops.CharmBase):
             authorization_policies.append(
                 RESOURCE_TYPES["AuthorizationPolicy"](
                     metadata=ObjectMeta(
-                        name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-waypoints",
+                        name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-waypoint",
                         namespace=self.model.name,
                     ),
                     spec={

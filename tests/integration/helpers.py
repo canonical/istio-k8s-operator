@@ -4,10 +4,10 @@
 # See LICENSE file for licensing details.
 
 import logging
+import subprocess
 from dataclasses import dataclass
 from typing import Optional
 
-import sh
 from lightkube.core.client import Client
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from tenacity import (
@@ -73,19 +73,19 @@ def assert_request_returns_http_code(
     """
     logger.info(f"Checking {source_unit} -> {target_url} on {method}")
     try:
-        resp = sh.juju.ssh(  # pyright: ignore
-            "-m",
-            model,
-            source_unit,
-            f'curl -X {method.upper()} -s -o /dev/null -w "%{{http_code}}" {target_url}',
-            _return_cmd=True,
+        result = subprocess.run(
+            ["juju", "ssh", "-m", model, source_unit,
+             f'curl -X {method.upper()} -s -o /dev/null -w "%{{http_code}}" {target_url}'],
+            capture_output=True,
+            text=True,
+            check=True
         )
-        returned_code = int(str(resp).strip())
-    except sh.ErrorReturnCode as e:
-        logger.warning(f"Got exit code {e.exit_code} executing sh.juju.ssh")
+        returned_code = int(result.stdout.strip())
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Got exit code {e.returncode} executing juju ssh")
         logger.warning(f"STDOUT: {e.stdout}")
         logger.warning(f"STDERR: {e.stderr}")
-        returned_code = e.exit_code
+        returned_code = e.returncode
 
     logger.info(
         f"Got {returned_code} for {source_unit} -> {target_url} on {method} - expected {code}"

@@ -81,18 +81,18 @@ async def test_deploy_dependencies(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_global_allow_nothing_policy(ops_test: OpsTest):
-    """Test if the global-allow-nothing-policy is applied correctly.
+async def test_hardened_mode(ops_test: OpsTest):
+    """Test if the hardened-mode is applied correctly.
 
-    Currently this tests the following, when the global-allow-nothing-policy is enabled, the charms on the mesh wont be able
-    to talk to each other even unless there is an explicit ALLOW policy.
+    Currently this tests the following, when the hardened-mode is enabled, the charms on the mesh wont be able
+    to talk to each other unless there is an explicit ALLOW policy.
     """
     assert ops_test.model
     istio_system_model = ops_test.models.get("istio-system")
     assert istio_system_model
 
-    # enable global-allow-nothing-policy
-    await istio_system_model.model.applications[APP_NAME].set_config({"global-allow-nothing-policy": "true"})
+    # enable hardened mode
+    await istio_system_model.model.applications[APP_NAME].set_config({"hardened-mode": "true"})
     await istio_system_model.model.wait_for_idle([APP_NAME], raise_on_error=False, timeout=1000)
 
     # check if traffic restriction have been applied
@@ -131,7 +131,7 @@ async def test_global_allow_nothing_policy(ops_test: OpsTest):
         ops_test.model.name,
         f"{bookinfo_productpage_k8s.application_name}/0",
         f"http://{bookinfo_details_k8s.application_name}.{ops_test.model.name}.svc.cluster.local:9080/health",
-        code=200,  # the global allow nothing will now be overridden
+        code=200,  # the explicit allow policy should allow this traffic
     )
 
 
@@ -146,7 +146,7 @@ async def test_auto_allow_waypoint_policy(ops_test: OpsTest):
     istio_system_model = ops_test.models.get("istio-system")
     assert istio_system_model
 
-    # enable global-allow-nothing-policy
+    # disable auto-allow-waypoint-policy
     await istio_system_model.model.applications[APP_NAME].set_config({"auto-allow-waypoint-policy": "false"})
     await istio_system_model.model.wait_for_idle([APP_NAME], raise_on_error=False, timeout=1000)
 
