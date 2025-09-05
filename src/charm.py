@@ -12,6 +12,10 @@ from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
 import ops
+from charmed_service_mesh_helpers.models import (
+    AuthorizationPolicySpec,
+    PolicyTargetReference,
+)
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.istio_k8s.v0.istio_ingress_config import (
     IngressConfigRequirer,
@@ -522,8 +526,8 @@ class IstioCoreCharm(ops.CharmBase):
                         name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-ztunnel",
                         namespace=self.model.name,
                     ),
-                    spec={}
-                )
+                    spec={},
+                ),
             )
 
             authorization_policies.append(
@@ -532,16 +536,16 @@ class IstioCoreCharm(ops.CharmBase):
                         name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-waypoint",
                         namespace=self.model.name,
                     ),
-                    spec={
-                        "targetRefs": [
-                            {
-                                "kind": "GatewayClass",
-                                "group": "gateway.networking.k8s.io",
-                                "name": "istio-waypoint",
-                            },
+                    spec=AuthorizationPolicySpec(
+                        targetRefs=[
+                            PolicyTargetReference(
+                                kind="GatewayClass",
+                                group="gateway.networking.k8s.io",
+                                name="istio-waypoint",
+                            ),
                         ],
-                    },
-                )
+                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+                ),
             )
         return authorization_policies
 
