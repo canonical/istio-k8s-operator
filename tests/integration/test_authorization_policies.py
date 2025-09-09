@@ -139,8 +139,7 @@ async def test_hardened_mode(ops_test: OpsTest):
 async def test_auto_allow_waypoint_policy(ops_test: OpsTest):
     """Test if the auto-allow-waypoint-policy is applied correctly.
 
-    Currently this tests the following, when the auto-allow-waypoint-policy is disabled, the charms on the mesh wont be able
-    to talk to each other via the waypoint even with the existence of explicit ALLOW policies.
+    Tests that, when `auto-allow-waypoint-policy=False`, ... 
     """
     assert ops_test.model
     istio_system_model = ops_test.models.get("istio-system")
