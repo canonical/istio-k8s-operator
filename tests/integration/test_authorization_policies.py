@@ -57,8 +57,7 @@ async def test_deploy_dependencies(ops_test: OpsTest):
     await ops_test.model.deploy(**asdict(bookinfo_details_k8s))
 
     # put the dependency charms on the mesh
-    await ops_test.model.add_relation(bookinfo_productpage_k8s.application_name, istio_beacon_k8s.application_name)
-    await ops_test.model.add_relation(bookinfo_details_k8s.application_name, istio_beacon_k8s.application_name)
+    await ops_test.model.applications[istio_beacon_k8s.application_name].set_config({"model-on-mesh": "true"})
 
     await ops_test.model.wait_for_idle(
         [
@@ -81,18 +80,18 @@ async def test_deploy_dependencies(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
-async def test_hardened_mode(ops_test: OpsTest):
+@pytest.mark.parametrize("hardened_mode", [True, False])
+async def test_hardened_mode(ops_test: OpsTest, hardened_mode):
     """Test if the hardened-mode is applied correctly.
 
-    Currently this tests the following, when the hardened-mode is enabled, the charms on the mesh wont be able
-    to talk to each other unless there is an explicit ALLOW policy.
+    Currently this tests the following, when the `hardened-mode=true`, the charms on the mesh wont be able to talk to each other unless there is an explicit ALLOW policy.
     """
     assert ops_test.model
     istio_system_model = ops_test.models.get("istio-system")
     assert istio_system_model
 
-    # enable hardened mode
-    await istio_system_model.model.applications[APP_NAME].set_config({"hardened-mode": "true"})
+    # toggle hardened mode
+    await istio_system_model.model.applications[APP_NAME].set_config({"hardened-mode": str(hardened_mode).lower()})
     await istio_system_model.model.wait_for_idle([APP_NAME], raise_on_error=False, timeout=1000)
 
     # check if traffic restriction have been applied
@@ -100,58 +99,31 @@ async def test_hardened_mode(ops_test: OpsTest):
         ops_test.model.name,
         f"{bookinfo_productpage_k8s.application_name}/0",
         f"http://{bookinfo_details_k8s.application_name}.{ops_test.model.name}.svc.cluster.local:9080/health",
-        code=403,  # connection to service forbidden
-    )
-
-    assert_request_returns_http_code(
-        ops_test.model.name,
-        f"{bookinfo_productpage_k8s.application_name}/0",
-        f"http://{bookinfo_details_k8s.application_name}-0.{bookinfo_details_k8s.application_name}-endpoints.{ops_test.model.name}.svc.cluster.local:9080/health",
-        code=1,  # connection to worload refused
-    )
-
-    # integrate the tester charms to create auth explicit allow auth policies
-    await ops_test.model.add_relation(
-        f"{bookinfo_productpage_k8s.application_name}:details",
-        f"{bookinfo_details_k8s.application_name}:details",
-    )
-
-    await ops_test.model.wait_for_idle(
-        [
-            istio_beacon_k8s.application_name,
-            bookinfo_productpage_k8s.application_name,
-            bookinfo_details_k8s.application_name,
-        ],
-        status="active",
-        raise_on_error=False,
-        timeout=1000,
-    )
-
-    assert_request_returns_http_code(
-        ops_test.model.name,
-        f"{bookinfo_productpage_k8s.application_name}/0",
-        f"http://{bookinfo_details_k8s.application_name}.{ops_test.model.name}.svc.cluster.local:9080/health",
-        code=200,  # the explicit allow policy should allow this traffic
+        code=403 if hardened_mode else 200,  # connection to service forbidden in hardened-mode
     )
 
 
 @pytest.mark.abort_on_fail
-async def test_auto_allow_waypoint_policy(ops_test: OpsTest):
+@pytest.mark.parametrize("auto_allow_waypoint_policy", [True, False])
+async def test_auto_allow_waypoint_policy(ops_test: OpsTest, auto_allow_waypoint_policy):
     """Test if the auto-allow-waypoint-policy is applied correctly.
 
-    Tests that, when `auto-allow-waypoint-policy=False`, ... 
+    Tests that, when `auto-allow-waypoint-policy=False` tests the charms on the mesh wont be able to talk to each other via the waypoint even with the existence of explicit ALLOW policies.
     """
     assert ops_test.model
     istio_system_model = ops_test.models.get("istio-system")
     assert istio_system_model
 
-    # disable auto-allow-waypoint-policy
-    await istio_system_model.model.applications[APP_NAME].set_config({"auto-allow-waypoint-policy": "false"})
+    # explicitly disable hardened-mode as this test would not pass under hardened-mode without additional policies
+    await istio_system_model.model.applications[APP_NAME].set_config({"hardened-mode": "false"})
+
+    # toggle auto-allow-waypoint-policy
+    await istio_system_model.model.applications[APP_NAME].set_config({"auto-allow-waypoint-policy": str(auto_allow_waypoint_policy).lower()})
     await istio_system_model.model.wait_for_idle([APP_NAME], raise_on_error=False, timeout=1000)
 
     assert_request_returns_http_code(
         ops_test.model.name,
         f"{bookinfo_productpage_k8s.application_name}/0",
-        f"http://{bookinfo_details_k8s.application_name}.{ops_test.model.name}.svc.cluster.local:9080/health",
-        code=503,  # traffic dropped at ztunnel as allow waypoint policy does not exist
+        f"http://{bookinfo_details_k8s.application_name}-0.{bookinfo_details_k8s.application_name}-endpoints.{ops_test.model.name}.svc.cluster.local:9080/health",
+        code=1 if auto_allow_waypoint_policy else 200,  # when the synthetic allow waypoint policy is in place, other workload connections will be rejected wihtout explicit allow policies
     )

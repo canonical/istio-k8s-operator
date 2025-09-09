@@ -198,8 +198,8 @@ class IstioCoreCharm(ops.CharmBase):
 
         self._reconcile_gateway_api_crds()
         self._reconcile_istio_crds()
-        self._reconcile_control_plane()
         self._reconcile_authorization_policies()
+        self._reconcile_control_plane()
 
         # Ensure the Pebble service is up-to-date
         self._setup_proxy_pebble_service()
@@ -511,43 +511,44 @@ class IstioCoreCharm(ops.CharmBase):
         return ",".join(f"{key}={value}" for key, value in label_dict.items())
 
     def _reconcile_authorization_policies(self) -> None:
-        """Sync authorization policies."""
-        authorization_policies = self._build_authorization_policies()
+        """Sync all global authorization policies."""
+        authorization_policies = []
+        if self.parsed_config["hardened-mode"]:
+            authorization_policies.extend(
+                    self._build_authorization_policies_for_hardened_mode()
+            )
         krm = self._get_authorization_policy_resource_manager()
         krm.reconcile(authorization_policies)  # type: ignore
 
-    def _build_authorization_policies(self):
-        """Build required globally managed authorization policies."""
-        authorization_policies = []
-        if self.parsed_config["hardened-mode"]:
-            authorization_policies.append(
-                RESOURCE_TYPES["AuthorizationPolicy"](
-                    metadata=ObjectMeta(
-                        name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-ztunnel",
-                        namespace=self.model.name,
-                    ),
-                    spec={},
-                ),
-            )
+    def _build_authorization_policies_for_hardened_mode(self):
+        """Build required globally managed authorization policies to operate istio in hardened-mode.
 
-            authorization_policies.append(
-                RESOURCE_TYPES["AuthorizationPolicy"](
-                    metadata=ObjectMeta(
-                        name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-waypoint",
-                        namespace=self.model.name,
-                    ),
-                    spec=AuthorizationPolicySpec(
-                        targetRefs=[
-                            PolicyTargetReference(
-                                kind="GatewayClass",
-                                group="gateway.networking.k8s.io",
-                                name="istio-waypoint",
-                            ),
-                        ],
-                    ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+        This adds a global allow-nothing policy for the waypoint and the ztunnel
+        """
+        return [
+            RESOURCE_TYPES["AuthorizationPolicy"](
+                metadata=ObjectMeta(
+                    name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-ztunnel",
+                    namespace=self.model.name,
                 ),
-            )
-        return authorization_policies
+                spec={},
+            ),
+            RESOURCE_TYPES["AuthorizationPolicy"](
+                metadata=ObjectMeta(
+                    name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-waypoint",
+                    namespace=self.model.name,
+                ),
+                spec=AuthorizationPolicySpec(
+                    targetRefs=[
+                        PolicyTargetReference(
+                            kind="GatewayClass",
+                            group="gateway.networking.k8s.io",
+                            name="istio-waypoint",
+                        ),
+                    ],
+                ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+            ),
+        ]
 
 
 def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
