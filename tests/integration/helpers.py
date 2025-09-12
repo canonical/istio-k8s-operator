@@ -33,16 +33,6 @@ istio_beacon_k8s = CharmDeploymentConfiguration(
 )
 
 
-bookinfo_productpage_k8s = CharmDeploymentConfiguration(
-    entity_url="bookinfo-productpage-k8s", application_name="bookinfo-productpage-k8s", channel="latest/stable", trust=True
-)
-
-
-bookinfo_details_k8s = CharmDeploymentConfiguration(
-    entity_url="bookinfo-details-k8s", application_name="bookinfo-details-k8s", channel="latest/stable", trust=True
-)
-
-
 async def get_hpa(namespace: str, hpa_name: str) -> Optional[HorizontalPodAutoscaler]:
     """Retrieve the HPA resource so we can inspect .spec and .status directly.
 

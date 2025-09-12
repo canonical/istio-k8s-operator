@@ -10,8 +10,6 @@ import pytest
 import yaml
 from helpers import (
     assert_request_returns_http_code,
-    bookinfo_details_k8s,
-    bookinfo_productpage_k8s,
     istio_beacon_k8s,
 )
 from pytest_operator.plugin import OpsTest
@@ -47,33 +45,35 @@ async def test_build_and_deploy(ops_test: OpsTest, istio_core_charm):
 
 
 @pytest.mark.abort_on_fail
-async def test_deploy_dependencies(ops_test: OpsTest):
+async def test_deploy_dependencies(ops_test: OpsTest, service_mesh_tester):
     """Deploy the required dependencies to test the auth policies from istio-k8s charm."""
     assert ops_test.model
 
     # deploy the dependency charms
-    await ops_test.model.deploy(**asdict(istio_beacon_k8s))
-    await ops_test.model.deploy(**asdict(bookinfo_productpage_k8s))
-    await ops_test.model.deploy(**asdict(bookinfo_details_k8s))
+    resources = {"echo-server-image": "jmalloc/echo-server:v0.3.7"}
 
+    await ops_test.model.deploy(**asdict(istio_beacon_k8s))
+    await ops_test.model.deploy(
+        service_mesh_tester,
+        application_name="receiver",
+        resources=resources,
+        trust=True,
+    )
+    await ops_test.model.deploy(
+        service_mesh_tester,
+        application_name="sender",
+        resources=resources,
+        trust=True,
+    )
     # put the dependency charms on the mesh
     await ops_test.model.applications[istio_beacon_k8s.application_name].set_config({"model-on-mesh": "true"})
-
     await ops_test.model.wait_for_idle(
         [
             istio_beacon_k8s.application_name,
-            bookinfo_details_k8s.application_name,
+            "sender",
+            "receiver",
         ],
         status="active",
-        raise_on_error=False,
-        timeout=1000,
-    )
-
-    await ops_test.model.wait_for_idle(
-        [
-            bookinfo_productpage_k8s.application_name,
-        ],
-        status="waiting",
         raise_on_error=False,
         timeout=1000,
     )
@@ -97,8 +97,8 @@ async def test_hardened_mode(ops_test: OpsTest, hardened_mode):
     # check if traffic restriction have been applied
     assert_request_returns_http_code(
         ops_test.model.name,
-        f"{bookinfo_productpage_k8s.application_name}/0",
-        f"http://{bookinfo_details_k8s.application_name}.{ops_test.model.name}.svc.cluster.local:9080/health",
+        "sender/0",
+        f"http://receiver.{ops_test.model.name}.svc.cluster.local:8080/foo",
         code=403 if hardened_mode else 200,  # connection to service forbidden in hardened-mode
     )
 
@@ -123,7 +123,7 @@ async def test_auto_allow_waypoint_policy(ops_test: OpsTest, auto_allow_waypoint
 
     assert_request_returns_http_code(
         ops_test.model.name,
-        f"{bookinfo_productpage_k8s.application_name}/0",
-        f"http://{bookinfo_details_k8s.application_name}-0.{bookinfo_details_k8s.application_name}-endpoints.{ops_test.model.name}.svc.cluster.local:9080/health",
+        "sender/0",
+        f"http://receiver-0.receiver-endpoints.{ops_test.model.name}.svc.cluster.local:8080/foo",
         code=1 if auto_allow_waypoint_policy else 200,  # when the synthetic allow waypoint policy is in place, other workload connections will be rejected wihtout explicit allow policies
     )
