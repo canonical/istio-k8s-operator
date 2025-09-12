@@ -9,3 +9,4 @@ class CharmConfig(BaseModel):
     ambient: bool
     platform: str = Field()  # type: ignore
     auto_allow_waypoint_policy: bool = Field(alias="auto-allow-waypoint-policy")  # type: ignore
+    hardened_mode: bool = Field(alias="hardened-mode")  # type: ignore

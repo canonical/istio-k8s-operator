@@ -11,6 +11,7 @@ tests/integration/*-tester/lib/
 .vscode/
 *.egg-info
 *.raw
+tests/integration/testers/service-mesh-tester/lib/*
 
 # Terraform files
 terraform/**/*.tfstate

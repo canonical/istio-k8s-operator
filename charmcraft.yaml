@@ -29,6 +29,11 @@ config:
         If this option is set to false, users must create L4 authorization policies between waypoints and the workloads.
         See [PILOT_AUTO_ALLOW_WAYPOINT_POLICY]https://istio.io/latest/docs/reference/commands/pilot-discovery/#envvars
         for more detail.
+    hardened-mode:
+      type: boolean
+      default: false
+      description: >
+        When set to true, no inbound traffic will be allowed to charms in the service mesh unless explicitly authorized by an ALLOW policy.
     platform:
       type: string
       default: 'microk8s'
