@@ -3,7 +3,7 @@ terraform {
   required_providers {
     juju = {
       source  = "juju/juju"
-      version = ">= 0.14.0"
+      version = "~> 1.0"
     }
   }
 }
@@ -40,7 +40,7 @@ module "istio" {
   source = "../.."
 
   # Required: reference to the model
-  model = juju_model.istio_test.name
+  model_uuid = juju_model.istio_test.uuid
 
   # Optional: customize the deployment
   app_name = "istio"
