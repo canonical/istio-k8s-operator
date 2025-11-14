@@ -476,8 +476,7 @@ class IstioCoreCharm(ops.CharmBase):
             r"values.sidecarInjectorWebhook.injectedAnnotations.traffic\.sidecar\.istio\.io/excludeOutboundIPRanges"
         ] = "0.0.0.0/0"
 
-        if self.parsed_config["ambient"]:
-            setting_overrides["values.profile"] = "ambient"
+        setting_overrides["values.profile"] = "ambient"
 
         if self.parsed_config["auto-allow-waypoint-policy"]:
             setting_overrides["values.pilot.env.PILOT_AUTO_ALLOW_WAYPOINT_POLICY"] = "true"
