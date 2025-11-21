@@ -52,4 +52,4 @@ class TestCharm:
 
         parsed_config = harness.charm.parsed_config
         # Assert an example config is as expected
-        assert parsed_config["ambient"]
+        assert parsed_config["auto-allow-waypoint-policy"]

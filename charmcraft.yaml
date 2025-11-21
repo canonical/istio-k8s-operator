@@ -11,11 +11,6 @@ description: |
 
 config:
   options:
-    ambient:
-      type: boolean
-      default: true
-      description: >
-        Enable Istio's ambient mode.  See https://istio.io/latest/docs/ambient/overview/ for details.
     auto-allow-waypoint-policy:
       type: boolean
       default: true
@@ -36,7 +31,7 @@ config:
         When set to true, no inbound traffic will be allowed to charms in the service mesh unless explicitly authorized by an ALLOW policy.
     platform:
       type: string
-      default: 'microk8s'
+      default: "microk8s"
       description: >
         Some Kubernetes platforms require platform-specific configuration for Istio to function correctly.  This is 
         described in more detail upstream in [Platform Prerequisites](https://istio.io/latest/docs/ambient/install/platform-prerequisites/).
@@ -75,7 +70,7 @@ requires:
     limit: 1
     description: |
       Enables sending workload traces from on-mesh workloads to a distributed tracing backend, such as Tempo.
-      
+
       In ambient mode, traces are generated at the L7 layer by a waypoint proxy. To enable this, you must deploy
       the waypoint proxy charm (i.e https://github.com/canonical/istio-beacon-k8s-operator) with --model-on-mesh=true
       to collect traces for all workloads on the mesh. Alternatively, if you prefer to limit tracing to specific workloads, 
@@ -103,7 +98,6 @@ parts:
     plugin: dump
     source: https://github.com/istio/istio/releases/download/1.26.1/istioctl-1.26.1-linux-amd64.tar.gz
     source-type: tar
-
 
 resources:
   metrics-proxy-image:
