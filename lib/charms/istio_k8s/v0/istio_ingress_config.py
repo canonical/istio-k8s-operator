@@ -52,21 +52,62 @@ Usage:
                 ...
 """
 
+import json
 import logging
-from typing import List, Optional
+from typing import Dict, List, Mapping, Optional
 
 from ops import Application, Relation, RelationMapping
 from pydantic import BaseModel, Field, field_validator
 
+
+def _load_data(data: Mapping) -> Dict:
+    """Parse JSON arrays/objects in databag values back to Python lists/dicts."""
+    ret = {}
+    for k, v in data.items():
+        try:
+            parsed = json.loads(v)
+            if isinstance(parsed, (list, dict)):
+                ret[k] = parsed
+            else:
+                ret[k] = v
+        except (json.JSONDecodeError, TypeError):
+            ret[k] = v
+    return ret
+
+
+def _dump_data(data: Dict) -> Dict:
+    """Serialize lists and dicts to JSON strings for databag storage."""
+    ret = {}
+    for k, v in data.items():
+        if isinstance(v, (list, dict)):
+            ret[k] = json.dumps(v)
+        else:
+            ret[k] = v
+    return ret
+
 # The unique Charmhub library identifier, never change it
 LIBID = "12331b5ac41547e087edd7ac993176ed"
+
+# Default headers for external authorization.
+# These defaults are based on oauth2-proxy requirements and can be used by ingress charms
+# when no headers are provided by the auth provider.
+DEFAULT_INCLUDE_HEADERS_IN_CHECK = ["authorization", "cookie"]
+DEFAULT_HEADERS_TO_UPSTREAM_ON_ALLOW = [
+    "authorization",
+    "path",
+    "x-auth-request-user",
+    "x-auth-request-email",
+    "x-auth-request-access-token",
+]
+DEFAULT_HEADERS_TO_DOWNSTREAM_ON_ALLOW = ["set-cookie"]
+DEFAULT_HEADERS_TO_DOWNSTREAM_ON_DENY = ["content-type", "set-cookie"]
 
 # Increment this major API version when introducing breaking changes
 LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 2
+LIBPATCH = 3
 
 DEFAULT_RELATION_NAME = "istio-ingress-config"
 
@@ -81,7 +122,7 @@ log = logging.getLogger(__name__)
 class ProviderIngressConfigData(BaseModel):
     """Data model for the provider side of the relation.
 
-    Holds the external authorizer service name and port information.
+    Holds the external authorizer service name, port, and header configuration.
     """
 
     ext_authz_service_name: Optional[str] = Field(
@@ -90,6 +131,22 @@ class ProviderIngressConfigData(BaseModel):
     )
     ext_authz_port: Optional[str] = Field(
         default=None, description="The port on which the external authorizer service is exposed."
+    )
+    include_headers_in_check: Optional[List[str]] = Field(
+        default=None,
+        description="Headers to forward to the external authorizer for checking.",
+    )
+    headers_to_upstream_on_allow: Optional[List[str]] = Field(
+        default=None,
+        description="Headers to pass to upstream services when authorization is granted.",
+    )
+    headers_to_downstream_on_allow: Optional[List[str]] = Field(
+        default=None,
+        description="Headers to send to the client when authorization is granted.",
+    )
+    headers_to_downstream_on_deny: Optional[List[str]] = Field(
+        default=None,
+        description="Headers to send to the client when authorization is denied.",
     )
 
     @field_validator("ext_authz_port")
@@ -148,18 +205,34 @@ class IngressConfigProvider:
         return self._charm_relation_mapping.get(self._relation_name, [])
 
     def publish(
-        self, ext_authz_service_name: Optional[str] = None, ext_authz_port: Optional[str] = None
+        self,
+        ext_authz_service_name: Optional[str] = None,
+        ext_authz_port: Optional[str] = None,
+        include_headers_in_check: Optional[List[str]] = None,
+        headers_to_upstream_on_allow: Optional[List[str]] = None,
+        headers_to_downstream_on_allow: Optional[List[str]] = None,
+        headers_to_downstream_on_deny: Optional[List[str]] = None,
     ):
         """Publish external authorizer configuration data to all related applications.
 
         Args:
             ext_authz_service_name: The external authorizer service name.
             ext_authz_port: The port number for the external authorizer service.
+            include_headers_in_check: Headers to forward to the external authorizer for checking.
+            headers_to_upstream_on_allow: Headers to pass to upstream on successful auth.
+            headers_to_downstream_on_allow: Headers to send to client on successful auth.
+            headers_to_downstream_on_deny: Headers to send to client on denied auth.
         """
         data = ProviderIngressConfigData(
             ext_authz_service_name=ext_authz_service_name,
             ext_authz_port=ext_authz_port,
+            include_headers_in_check=include_headers_in_check,
+            headers_to_upstream_on_allow=headers_to_upstream_on_allow,
+            headers_to_downstream_on_allow=headers_to_downstream_on_allow,
+            headers_to_downstream_on_deny=headers_to_downstream_on_deny,
         ).model_dump(mode="json", by_alias=True, exclude_defaults=True, round_trip=True)
+        # Serialize lists to JSON strings for databag storage
+        data = _dump_data(data)
 
         for relation in self.relations:
             databag = relation.data[self._app]
@@ -268,7 +341,9 @@ class IngressConfigRequirer:
         if not raw_data:
             return None
         try:
-            return ProviderIngressConfigData.model_validate(raw_data)
+            # Parse JSON strings back to Python objects (for list fields)
+            parsed_data = _load_data(raw_data)
+            return ProviderIngressConfigData.model_validate(parsed_data)
         except Exception as e:
             log.debug("Failed to validate provider data: %s", e)
             return None

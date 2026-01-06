@@ -58,6 +58,16 @@ def ingress_config():
         remote_app_data={
             "ext_authz_service_name": "oauth-service",
             "ext_authz_port": "8080",
+            "include_headers_in_check": json.dumps(["authorization", "cookie"]),
+            "headers_to_upstream_on_allow": json.dumps([
+                "authorization",
+                "path",
+                "x-auth-request-user",
+                "x-auth-request-email",
+                "x-auth-request-access-token",
+            ]),
+            "headers_to_downstream_on_allow": json.dumps(["set-cookie"]),
+            "headers_to_downstream_on_deny": json.dumps(["content-type", "set-cookie"]),
         },
         local_app_data={},
     )

@@ -415,16 +415,10 @@ class IstioCoreCharm(ops.CharmBase):
                         "envoyExtAuthzHttp": {
                             "service": ext_authz_info.ext_authz_service_name,  # type: ignore
                             "port": ext_authz_info.ext_authz_port,  # type: ignore
-                            "includeRequestHeadersInCheck": ["authorization", "cookie"],
-                            "headersToUpstreamOnAllow": [
-                                "authorization",
-                                "path",
-                                "x-auth-request-user",
-                                "x-auth-request-email",
-                                "x-auth-request-access-token",
-                            ],
-                            "headersToDownstreamOnAllow": ["set-cookie"],
-                            "headersToDownstreamOnDeny": ["content-type", "set-cookie"],
+                            "includeRequestHeadersInCheck": ext_authz_info.include_headers_in_check,  # type: ignore
+                            "headersToUpstreamOnAllow": ext_authz_info.headers_to_upstream_on_allow,  # type: ignore
+                            "headersToDownstreamOnAllow": ext_authz_info.headers_to_downstream_on_allow,  # type: ignore
+                            "headersToDownstreamOnDeny": ext_authz_info.headers_to_downstream_on_deny,  # type: ignore
                         },
                     }
                 )
