@@ -54,7 +54,7 @@ from ops import StatusBase
 from ops.pebble import ChangeError, Layer
 
 from config import CharmConfig
-from istioctl import Istioctl
+from istioctl import Istioctl, IstioctlError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -200,6 +200,7 @@ class IstioCoreCharm(ops.CharmBase):
         self._reconcile_istio_crds()
         self._reconcile_authorization_policies()
         self._reconcile_control_plane()
+        self._set_istio_version()
 
         # Ensure the Pebble service is up-to-date
         self._setup_proxy_pebble_service()
@@ -245,6 +246,15 @@ class IstioCoreCharm(ops.CharmBase):
     def _get_resource_manager(self, resource_group: str) -> KubernetesResourceManager:
         """Return an initialized KubernetesResourceManager for the given resource group."""
         return self._resource_manager_factories[resource_group]()
+
+    def _set_istio_version(self) -> None:
+        """Set the istio version in juju status."""
+        if self.unit.is_leader():
+            ictl = self._get_istioctl()
+            try:
+                self.unit.set_workload_version(ictl.version()["control_plane"])
+            except IstioctlError:
+                self.unit.set_workload_version("")
 
     def _reconcile_control_plane(self):
         """Reconcile the control plane resources."""
