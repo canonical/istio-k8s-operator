@@ -67,7 +67,7 @@ async def test_gateway_api_crds(ops_test: OpsTest):
     assert do_gateway_api_crds_exist_result.success, do_gateway_api_crds_exist_result.message
 
 
-async def test_workload_version_set(ops_test: OptTest):
+async def test_workload_version_set(ops_test: OpsTest):
     """Assert that the workload version has been set."""
     app = ops_test.model.applications[APP_NAME]
     assert app.workload_version
