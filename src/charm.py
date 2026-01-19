@@ -15,6 +15,7 @@ import ops
 from charmed_service_mesh_helpers.models import (
     AuthorizationPolicySpec,
     PolicyTargetReference,
+    WorkloadSelector,
 )
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.istio_k8s.v0.istio_ingress_config import (
@@ -526,7 +527,10 @@ class IstioCoreCharm(ops.CharmBase):
     def _build_authorization_policies_for_hardened_mode(self):
         """Build required globally managed authorization policies to operate istio in hardened-mode.
 
-        This adds a global allow-nothing policy for the waypoint and the ztunnel
+        This adds a global allow-nothing policy for the waypoint and the ztunnel.
+        The ztunnel policy uses a selector to target mesh workloads only. Without the selector,
+        the policy is unexpectedly picked up by the ingress gateway.
+        See: https://github.com/istio/istio/issues/58838
         """
         return [
             RESOURCE_TYPES["AuthorizationPolicy"](
@@ -534,7 +538,9 @@ class IstioCoreCharm(ops.CharmBase):
                     name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-ztunnel",
                     namespace=self.model.name,
                 ),
-                spec={},
+                spec=AuthorizationPolicySpec(
+                    selector=WorkloadSelector(matchLabels={"istio.io/dataplane-mode": "ambient"}),
+                ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
             ),
             RESOURCE_TYPES["AuthorizationPolicy"](
                 metadata=ObjectMeta(
