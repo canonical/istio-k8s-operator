@@ -61,6 +61,20 @@ async def test_ambient_mode_enabled(ops_test: OpsTest):
 
 
 @pytest.mark.abort_on_fail
+async def test_cni_iptables_reconciliation_enabled(ops_test: OpsTest):
+    """Assert that CNI is configured to reconcile iptables on startup.
+
+    This setting ensures that when the CNI restarts, it will fix any corrupted or stale
+    iptables rules in existing pods. Without this, pods could bypass the mesh security
+    after a CNI restart if their iptables were corrupted.
+
+    See: https://istio.io/latest/news/releases/1.25.x/announcing-1.25/upgrade-notes/
+    """
+    result = is_cni_iptables_reconciliation_enabled(namespace=ops_test.model.name)
+    assert result.success, result.message
+
+
+@pytest.mark.abort_on_fail
 async def test_gateway_api_crds(ops_test: OpsTest):
     """Assert that the Gateway-API CRDs are deployed."""
     do_gateway_api_crds_exist_result = do_gateway_api_crds_exist()
@@ -186,6 +200,27 @@ def is_ambient_mode_enabled(namespace: str) -> BoolTestResult:
             message=f"Ambient mode is not enabled - istio-cni-node's ConfigMap does not have AMBIENT_ENABLED=true, found 'AMBIENT_ENABLED={cni_ambient_enabled}",
         )
 
+    return BoolTestResult(success=True)
+
+
+def is_cni_iptables_reconciliation_enabled(namespace: str) -> BoolTestResult:
+    """Assert that CNI is configured to reconcile iptables rules on startup.
+
+    When enabled, CNI will fix corrupted/stale iptables rules in existing pods during restarts.
+    This prevents mesh security bypass when pods have corrupted iptables rules.
+    """
+    lc = Client()
+    cm = lc.get(ConfigMap, "istio-cni-config", namespace=namespace)
+    reconcile_on_startup = cm.data.get("AMBIENT_RECONCILE_POD_RULES_ON_STARTUP")
+    if reconcile_on_startup != "true":
+        return BoolTestResult(
+            success=False,
+            message=(
+                f"CNI iptables reconciliation is not enabled - istio-cni-config ConfigMap "
+                f"does not have AMBIENT_RECONCILE_POD_RULES_ON_STARTUP=true, "
+                f"found '{reconcile_on_startup}'"
+            ),
+        )
     return BoolTestResult(success=True)
 
 

@@ -482,6 +482,12 @@ class IstioCoreCharm(ops.CharmBase):
 
         setting_overrides["values.profile"] = "ambient"
 
+        # Enable CNI iptables reconciliation on startup to ensure pods are properly enrolled
+        # in the ambient mesh after CNI restarts. Without this, corrupted/stale iptables rules
+        # in existing pods won't be fixed, leading to mesh security bypass.
+        # (see https://istio.io/latest/news/releases/1.25.x/announcing-1.25/upgrade-notes/)
+        setting_overrides["values.cni.ambient.reconcileIptablesOnStartup"] = "true"
+
         if self.parsed_config["auto-allow-waypoint-policy"]:
             setting_overrides["values.pilot.env.PILOT_AUTO_ALLOW_WAYPOINT_POLICY"] = "true"
 
