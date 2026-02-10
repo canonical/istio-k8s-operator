@@ -50,7 +50,6 @@ from lightkube.resources.rbac_authorization_v1 import (
     RoleBinding,
 )
 from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
-from ops import StatusBase
 from ops.pebble import ChangeError, Layer
 
 from config import CharmConfig
@@ -206,19 +205,67 @@ class IstioCoreCharm(ops.CharmBase):
         self._setup_proxy_pebble_service()
 
     def on_collect_status(self, event: ops.CollectStatusEvent):
-        """Handle the collect status event, determining the status of the charm."""
-        statuses: List[StatusBase] = []
-
-        # Check if istiod is up
-        # TODO: Implement a better check for whether the deployment is actually active.  Atm if we get to this stage, we
-        #  know everything was attempted properly and we assume it worked.
-        active_status_message = ""
+        """Collect unit statuses. Framework picks the worst."""
         if not self.unit.is_leader():
-            active_status_message = "Backup unit; standing by for leader take over"
-        statuses.append(ops.ActiveStatus(active_status_message))
+            event.add_status(ops.ActiveStatus("Standby (non-leader)"))
+            return
 
-        for status in statuses:
+        for status in self._get_control_plane_statuses():
             event.add_status(status)
+
+    def _get_control_plane_statuses(self) -> list:
+        """Check control plane components and return list of statuses."""
+        statuses = []
+
+        # Check CNI DaemonSet
+        cni_status = self._check_daemonset_ready(
+            "istio-cni-node",
+            "Istio CNI not ready. Possible platform mismatch. Check charm config.",
+        )
+        if cni_status:
+            statuses.append(cni_status)
+
+        # Check ztunnel DaemonSet
+        ztunnel_status = self._check_daemonset_ready("ztunnel", "Istio ztunnel not ready.")
+        if ztunnel_status:
+            statuses.append(ztunnel_status)
+
+        # Check istiod Deployment
+        istiod_status = self._check_deployment_ready("istiod", "Istio istiod not ready.")
+        if istiod_status:
+            statuses.append(istiod_status)
+
+        # If no issues, return active
+        if not statuses:
+            statuses.append(ops.ActiveStatus())
+
+        return statuses
+
+    def _check_daemonset_ready(self, name: str, message: str) -> ops.StatusBase | None:
+        """Check if a DaemonSet is ready. Returns BlockedStatus if not ready, None otherwise."""
+        try:
+            ds = self.lightkube_client.get(DaemonSet, name=name, namespace=self.model.name)
+            if ds.status:
+                desired = ds.status.desiredNumberScheduled or 0
+                ready = ds.status.numberReady or 0
+                if desired > 0 and ready < desired:
+                    return ops.WaitingStatus(message)
+        except Exception as e:
+            LOGGER.error(f"Failed to check {name} status: {e}")
+        return None
+
+    def _check_deployment_ready(self, name: str, message: str) -> ops.StatusBase | None:
+        """Check if a Deployment is ready. Returns BlockedStatus if not ready, None otherwise."""
+        try:
+            deploy = self.lightkube_client.get(Deployment, name=name, namespace=self.model.name)
+            if deploy.status:
+                desired = deploy.spec.replicas if deploy.spec else 0
+                ready = deploy.status.readyReplicas or 0
+                if desired and ready < desired:
+                    return ops.WaitingStatus(message)
+        except Exception as e:
+            LOGGER.error(f"Failed to check {name} status: {e}")
+        return None
 
     def _remove(self, _event: ops.RemoveEvent):
         """Remove the charm's resources."""
