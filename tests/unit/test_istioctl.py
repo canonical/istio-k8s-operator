@@ -395,6 +395,39 @@ def test_get_control_plane_version_no_pilot_in_meshes():
         get_control_plane_version(istioctl_version_output)
 
 
+def test_istioctl_overlay_files(mocked_check_output):
+    """Test that overlay_files result in -f flags in generated args."""
+    overlay_files = ["/tmp/overlay1.yaml", "/tmp/overlay2.yaml"]
+    ictl = Istioctl(
+        istioctl_path=ISTIOCTL_BINARY,
+        namespace=NAMESPACE,
+        profile=PROFILE,
+        overlay_files=overlay_files,
+    )
+
+    ictl.manifest_generate()
+
+    expected_call_args = [
+        ISTIOCTL_BINARY,
+        "manifest",
+        "generate",
+    ]
+    expected_call_args.extend(EXPECTED_ISTIOCTL_FLAGS)
+    expected_call_args.extend(["-f", "/tmp/overlay1.yaml", "-f", "/tmp/overlay2.yaml"])
+
+    mocked_check_output.assert_called_once_with(expected_call_args)
+
+
+def test_istioctl_no_overlay_files(mocked_check_output):
+    """Test that no -f flags appear when overlay_files is not provided."""
+    ictl = Istioctl(istioctl_path=ISTIOCTL_BINARY, namespace=NAMESPACE, profile=PROFILE)
+
+    ictl.manifest_generate()
+
+    call_args = mocked_check_output.call_args[0][0]
+    assert "-f" not in call_args
+
+
 @pytest.mark.parametrize(
     "settings, expected_args",
     [
