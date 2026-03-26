@@ -42,6 +42,7 @@ class Istioctl:
         namespace: Optional[str] = "istio-system",
         profile: Optional[str] = "empty",
         setting_overrides: Optional[Dict[str, str]] = None,
+        overlay_files: Optional[List[str]] = None,
     ):
         """Python API for operating the istioctl binary.
 
@@ -54,11 +55,14 @@ class Istioctl:
             setting_overrides (optional, dict): A map of IstioOperator overrides to apply during
                                                 istioctl calls, passed to istioctl as `--set`
                                                 options
+            overlay_files (optional, list): A list of file paths to IstioOperator overlay YAML files,
+                                            passed to istioctl as `-f` options
         """
         self._istioctl_path = istioctl_path
         self._namespace = namespace
         self._profile = profile
         self._setting_overrides = setting_overrides if setting_overrides is not None else {}
+        self._overlay_files = overlay_files or []
 
     @property
     def _args(self) -> List[str]:
@@ -67,7 +71,10 @@ class Istioctl:
             "values.global.istioNamespace": self._namespace,
         }
         settings.update(self._setting_overrides)
-        return settings_dict_to_args(settings)
+        args = settings_dict_to_args(settings)
+        for f in self._overlay_files:
+            args.extend(["-f", f])
+        return args
 
     def install(self):
         """Install Istio using the `istioctl install` command."""

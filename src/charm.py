@@ -7,14 +7,19 @@
 
 import hashlib
 import logging
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
 import ops
+import yaml
 from charmed_service_mesh_helpers.models import (
     AuthorizationPolicySpec,
     PolicyTargetReference,
+)
+from charms.certificate_transfer_interface.v1.certificate_transfer import (
+    CertificateTransferRequires,
 )
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.istio_k8s.v0.istio_ingress_config import (
@@ -91,6 +96,7 @@ RESOURCE_TYPES = {
     ),
 }
 AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
+JWKS_CA_CERT_RELATION = "jwks-ca-cert"
 AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
 
 
@@ -144,6 +150,10 @@ class IstioCoreCharm(ops.CharmBase):
             app=self.app,
         )
 
+        self.cert_transfer = CertificateTransferRequires(
+            self, relationship_name=JWKS_CA_CERT_RELATION
+        )
+
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.start, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
@@ -158,6 +168,12 @@ class IstioCoreCharm(ops.CharmBase):
         self.framework.observe(self.on.leader_elected, self._reconcile)
         self.framework.observe(self.on["peers"].relation_changed, self._reconcile)
         self.framework.observe(self.on["peers"].relation_departed, self._reconcile)
+        self.framework.observe(
+            self.cert_transfer.on.certificate_set_updated, self._reconcile
+        )
+        self.framework.observe(
+            self.cert_transfer.on.certificates_removed, self._reconcile
+        )
 
     def _setup_proxy_pebble_service(self):
         """Define and start the metrics broadcast proxy Pebble service."""
@@ -490,6 +506,30 @@ class IstioCoreCharm(ops.CharmBase):
             config.update(flat)
         return config
 
+    def _get_ca_certificates(self) -> str:
+        """Return all CA certificates from the jwks-ca-cert relation as a PEM bundle."""
+        certs = self.cert_transfer.get_all_certificates()
+        if not certs:
+            return ""
+        return "\n".join(sorted(certs))
+
+    def _write_jwks_ca_overlay(self, ca_bundle: str) -> str:
+        """Write an IstioOperator overlay YAML with the JWKS CA cert and return the file path."""
+        overlay = {
+            "apiVersion": "install.istio.io/v1alpha1",
+            "kind": "IstioOperator",
+            "spec": {
+                "values": {
+                    "pilot": {
+                        "jwksResolverExtraRootCA": ca_bundle
+                    }
+                }
+            }
+        }
+        overlay_path = Path(tempfile.gettempdir()) / "jwks-ca-overlay.yaml"
+        overlay_path.write_text(yaml.dump(overlay, default_flow_style=False))
+        return str(overlay_path)
+
     def _get_istioctl(self) -> Istioctl:
         """Return an initialized Istioctl instance."""
         # Default settings
@@ -542,11 +582,17 @@ class IstioCoreCharm(ops.CharmBase):
         if self.parsed_config["auto-allow-waypoint-policy"]:
             setting_overrides["values.pilot.env.PILOT_AUTO_ALLOW_WAYPOINT_POLICY"] = "true"
 
+        overlay_files = []
+        ca_bundle = self._get_ca_certificates()
+        if ca_bundle:
+            overlay_files.append(self._write_jwks_ca_overlay(ca_bundle))
+
         return Istioctl(
             istioctl_path="./istioctl",
             namespace=self.model.name,
             profile="empty",
             setting_overrides=setting_overrides,
+            overlay_files=overlay_files,
         )
 
     def _add_metrics_labels(self, resources: List[AnyResource]) -> List[AnyResource]:

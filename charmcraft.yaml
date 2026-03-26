@@ -92,6 +92,16 @@ requires:
     description: |
       Provides an interface for exchanging Istio ingress configuration,
       including external authorizer configuration details.
+  jwks-ca-cert:
+    interface: certificate_transfer
+    optional: true
+    description: |
+      Receive CA certificates to be trusted by istiod for JWKS resolution.
+      When a RequestAuthentication resource specifies a jwksUri served by
+      a self-signed certificate, istiod needs to trust the signing CA to
+      fetch the JWKS keys. Relate a CA certificate provider here to
+      configure that trust.
+    limit: 1
 
 peers:
   peers:
@@ -110,6 +120,10 @@ parts:
     plugin: dump
     source: https://github.com/istio/istio/releases/download/1.26.1/istioctl-1.26.1-linux-amd64.tar.gz
     source-type: tar
+
+charm-libs:
+  - lib: "certificate_transfer_interface.certificate_transfer"
+    version: '1'
 
 resources:
   metrics-proxy-image:
