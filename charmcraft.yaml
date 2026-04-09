@@ -118,7 +118,7 @@ parts:
       git describe --always > $CRAFT_PART_INSTALL/version
   istioctl:
     plugin: dump
-    source: https://github.com/istio/istio/releases/download/1.26.1/istioctl-1.26.1-linux-amd64.tar.gz
+    source: https://github.com/istio/istio/releases/download/1.29.0/istioctl-1.29.0-linux-amd64.tar.gz
     source-type: tar
 
 charm-libs:
@@ -129,6 +129,4 @@ resources:
   metrics-proxy-image:
     type: oci-image
     description: Metrics Proxy OCI image
-    # TODO: change below to point at the correct image once metrics-proxy rock is onboarded
-    # see: https://github.com/canonical/oci-factory/issues/268
-    upstream-source: docker.io/ibraaoad/metrics-proxy:v0.1.0
+    upstream-source: docker.io/ubuntu/metrics-proxy:0.1.1-24.04_stable

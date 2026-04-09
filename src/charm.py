@@ -87,6 +87,14 @@ ISTIO_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml"]
 GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
 GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
+
+# Rock image settings
+ROCK_REGISTRY = "docker.io/ubuntu"
+ISTIO_VERSION = "1.29.0"
+ISTIO_ROCK_TAG = f"{ISTIO_VERSION}-24.04_stable"
+PILOT_IMAGE = "istio-pilot"
+CNI_IMAGE = "istio-install-cni"
+ZTUNNEL_IMAGE = "istio-ztunnel"
 RESOURCE_TYPES = {
     "AuthorizationPolicy": create_namespaced_resource(
         "security.istio.io",
@@ -188,8 +196,9 @@ class IstioCoreCharm(ops.CharmBase):
                     "metrics-proxy": {
                         "override": "replace",
                         "summary": "Metrics Broadcast Proxy",
-                        "command": f"metrics-proxy --labels {self.format_labels(self.telemetry_labels)}",
+                        "command": "metrics-proxy",
                         "startup": "enabled",
+                        "environment": {"POD_LABEL_SELECTOR": self.format_labels(self.telemetry_labels)},
                     }
                 },
             }
@@ -581,6 +590,17 @@ class IstioCoreCharm(ops.CharmBase):
 
         if self.parsed_config["auto-allow-waypoint-policy"]:
             setting_overrides["values.pilot.env.PILOT_AUTO_ALLOW_WAYPOINT_POLICY"] = "true"
+
+        # Use Canonical rock images for Istio components (envoy/proxyv2 stays upstream)
+        setting_overrides["values.pilot.hub"] = ROCK_REGISTRY
+        setting_overrides["values.pilot.image"] = PILOT_IMAGE
+        setting_overrides["values.pilot.tag"] = ISTIO_ROCK_TAG
+        setting_overrides["values.cni.hub"] = ROCK_REGISTRY
+        setting_overrides["values.cni.image"] = CNI_IMAGE
+        setting_overrides["values.cni.tag"] = ISTIO_ROCK_TAG
+        setting_overrides["values.ztunnel.hub"] = ROCK_REGISTRY
+        setting_overrides["values.ztunnel.image"] = ZTUNNEL_IMAGE
+        setting_overrides["values.ztunnel.tag"] = ISTIO_ROCK_TAG
 
         overlay_files = []
         ca_bundle = self._get_ca_certificates()
