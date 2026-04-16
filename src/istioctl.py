@@ -132,7 +132,7 @@ class Istioctl:
         command = [self._istioctl_path, *args]
         logger.info(f"Running command: {' '.join(command)}")
         try:
-            output = subprocess.check_output(command)
+            output = subprocess.check_output(command, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError as cpe:
             istioctl_error = IstioctlError(
                 f"Failed to run command {' '.join(command)} with error code {cpe.returncode}",
@@ -169,6 +169,13 @@ class Istioctl:
         """Return istio client and control plane versions."""
         args = ["version", f"-i={self._namespace}", "-o=yaml"]
         version_string = self._run(*args)
+
+        # istioctl may emit structured log lines (with tab separators) to stdout
+        # before the YAML output when the control plane is not fully ready.
+        # Strip any non-YAML preamble to avoid yaml.safe_load failures.
+        yaml_start = version_string.find("clientVersion:")
+        if yaml_start > 0:
+            version_string = version_string[yaml_start:]
 
         version_dict = yaml.safe_load(version_string)
         return {

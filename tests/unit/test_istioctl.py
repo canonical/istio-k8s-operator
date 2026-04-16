@@ -1,3 +1,4 @@
+import subprocess
 import sys
 from pathlib import Path
 from subprocess import CalledProcessError
@@ -96,7 +97,7 @@ def test_istioctl_install_no_setting_overrides(mocked_check_output):
     ]
     expected_call_args.extend(EXPECTED_ISTIOCTL_FLAGS)
 
-    mocked_check_output.assert_called_once_with(expected_call_args)
+    mocked_check_output.assert_called_once_with(expected_call_args, stderr=subprocess.PIPE)
 
 
 def test_istioctl_install_setting_overrides(mocked_check_output):
@@ -121,7 +122,7 @@ def test_istioctl_install_setting_overrides(mocked_check_output):
     for k, v in setting_overrides.items():
         expected_call_args.extend(["--set", f"{k}={v}"])
 
-    mocked_check_output.assert_called_once_with(expected_call_args)
+    mocked_check_output.assert_called_once_with(expected_call_args, stderr=subprocess.PIPE)
 
 
 def test_istioctl_install_error(mocked_check_output_failing):
@@ -146,7 +147,7 @@ def test_istioctl_manifest(mocked_check_output):
     ]
     expected_call_args.extend(EXPECTED_ISTIOCTL_FLAGS)
 
-    mocked_check_output.assert_called_once_with(expected_call_args)
+    mocked_check_output.assert_called_once_with(expected_call_args, stderr=subprocess.PIPE)
 
     # Assert that we received the expected manifests from istioctl
     expected_manifest = "stdout"
@@ -177,7 +178,7 @@ def test_istioctl_manifest_with_setting_overrides_and_components(mocked_check_ou
     for c in components:
         expected_call_args.extend(["--set", f"components.{c}.enabled=true"])
 
-    mocked_check_output.assert_called_once_with(expected_call_args)
+    mocked_check_output.assert_called_once_with(expected_call_args, stderr=subprocess.PIPE)
 
 
 def test_istioctl_manifest_error(mocked_check_output_failing):
@@ -215,7 +216,7 @@ def test_istioctl_manifest_with_lightkube_overrides(mocked_check_output_manifest
         "generate",
     ]
     expected_call_args.extend(EXPECTED_ISTIOCTL_FLAGS)
-    mocked_check_output_manifest.assert_called_once_with(expected_call_args)
+    mocked_check_output_manifest.assert_called_once_with(expected_call_args, stderr=subprocess.PIPE)
 
     # Verify the override was applied
     docs = list(yaml.safe_load_all(manifest))
@@ -238,7 +239,7 @@ def test_istioctl_remove(mocked_check_output):
 
     ictl.uninstall()
 
-    mocked_check_output.assert_called_once_with([ISTIOCTL_BINARY, "uninstall", "--purge", "-y"])
+    mocked_check_output.assert_called_once_with([ISTIOCTL_BINARY, "uninstall", "--purge", "-y"], stderr=subprocess.PIPE)
 
 
 def test_istioctl_remove_error(mocked_check_output_failing):
@@ -253,7 +254,7 @@ def test_istioctl_precheck(mocked_check_output):
 
     ictl.precheck()
 
-    mocked_check_output.assert_called_once_with([ISTIOCTL_BINARY, "x", "precheck"])
+    mocked_check_output.assert_called_once_with([ISTIOCTL_BINARY, "x", "precheck"], stderr=subprocess.PIPE)
 
 
 def test_istioctl_precheck_error(mocked_check_output_failing):
@@ -275,7 +276,7 @@ def test_istioctl_upgrade(mocked_check_output):
     ]
     expected_call_args.extend(EXPECTED_ISTIOCTL_FLAGS)
 
-    mocked_check_output.assert_called_once_with(expected_call_args)
+    mocked_check_output.assert_called_once_with(expected_call_args, stderr=subprocess.PIPE)
 
 
 def test_istioctl_upgrade_error(mocked_check_output_failing):
@@ -310,7 +311,8 @@ def test_istioctl_version(mocked_check_output):
             "version",
             f"-i={NAMESPACE}",
             "-o=yaml",
-        ]
+        ],
+        stderr=subprocess.PIPE,
     )
 
     assert version_data["client"] == expected_client_version
@@ -415,7 +417,7 @@ def test_istioctl_overlay_files(mocked_check_output):
     expected_call_args.extend(EXPECTED_ISTIOCTL_FLAGS)
     expected_call_args.extend(["-f", "/tmp/overlay1.yaml", "-f", "/tmp/overlay2.yaml"])
 
-    mocked_check_output.assert_called_once_with(expected_call_args)
+    mocked_check_output.assert_called_once_with(expected_call_args, stderr=subprocess.PIPE)
 
 
 def test_istioctl_no_overlay_files(mocked_check_output):
