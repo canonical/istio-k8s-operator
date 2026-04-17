@@ -38,6 +38,7 @@ from lightkube.models.autoscaling_v2 import (
     CrossVersionObjectReference,
     HorizontalPodAutoscalerSpec,
 )
+from lightkube.models.core_v1 import EmptyDirVolumeSource, EnvVar, Volume, VolumeMount
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.admissionregistration_v1 import (
     MutatingWebhookConfiguration,
@@ -87,6 +88,14 @@ ISTIO_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml"]
 GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
 GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
+
+# Rock image settings
+ROCK_REGISTRY = "docker.io/ubuntu"
+ISTIO_VERSION = "1.29"
+ISTIO_ROCK_TAG = f"{ISTIO_VERSION}-24.04_stable"
+PILOT_IMAGE = "istio-pilot"
+CNI_IMAGE = "istio-install-cni"
+ZTUNNEL_IMAGE = "istio-ztunnel"
 RESOURCE_TYPES = {
     "AuthorizationPolicy": create_namespaced_resource(
         "security.istio.io",
@@ -188,8 +197,9 @@ class IstioCoreCharm(ops.CharmBase):
                     "metrics-proxy": {
                         "override": "replace",
                         "summary": "Metrics Broadcast Proxy",
-                        "command": f"metrics-proxy --labels {self.format_labels(self.telemetry_labels)}",
+                        "command": "metrics-proxy",
                         "startup": "enabled",
+                        "environment": {"POD_LABEL_SELECTOR": self.format_labels(self.telemetry_labels)},
                     }
                 },
             }
@@ -342,6 +352,7 @@ class IstioCoreCharm(ops.CharmBase):
             )
 
             resources = codecs.load_all_yaml(manifests, create_resources_for_crds=True)
+            resources = self._patch_pebble_runtime(resources)
             resources = self._add_metrics_labels(resources)
 
         krm = self._get_resource_manager(CONTROL_PLANE_LABEL)
@@ -582,6 +593,19 @@ class IstioCoreCharm(ops.CharmBase):
         if self.parsed_config["auto-allow-waypoint-policy"]:
             setting_overrides["values.pilot.env.PILOT_AUTO_ALLOW_WAYPOINT_POLICY"] = "true"
 
+        # Use Canonical rock images for Istio components (envoy/proxyv2 stays upstream)
+        setting_overrides["values.pilot.hub"] = ROCK_REGISTRY
+        setting_overrides["values.pilot.image"] = PILOT_IMAGE
+        setting_overrides["values.pilot.tag"] = ISTIO_ROCK_TAG
+        setting_overrides["values.cni.hub"] = ROCK_REGISTRY
+        setting_overrides["values.cni.image"] = CNI_IMAGE
+        setting_overrides["values.cni.tag"] = ISTIO_ROCK_TAG
+        setting_overrides["values.ztunnel.hub"] = ROCK_REGISTRY
+        setting_overrides["values.ztunnel.image"] = ZTUNNEL_IMAGE
+        setting_overrides["values.ztunnel.tag"] = ISTIO_ROCK_TAG
+        # Disable the default distroless variant suffix that istioctl appends to image tags
+        setting_overrides["values.global.variant"] = ""
+
         overlay_files = []
         ca_bundle = self._get_ca_certificates()
         if ca_bundle:
@@ -594,6 +618,54 @@ class IstioCoreCharm(ops.CharmBase):
             setting_overrides=setting_overrides,
             overlay_files=overlay_files,
         )
+
+    @staticmethod
+    def _patch_pebble_runtime(resources: List[AnyResource]) -> List[AnyResource]:
+        """Patch resources for compatibility with Pebble-based rocks.
+
+        Rocks use Pebble as their OCI entrypoint, which requires three adjustments:
+        1. A writable emptyDir volume at /run/pebble for Pebble state files (socket, identity),
+           since Istio enforces readOnlyRootFilesystem: true on istiod and ztunnel.
+        2. PEBBLE and PEBBLE_COPY_ONCE env vars to redirect Pebble's runtime directory to the
+           writable mount and copy baked-in layer config from /var/lib/pebble/default on first
+           start.
+        3. Stripping container args from ztunnel — istioctl injects ["proxy", "ztunnel"] which
+           Pebble misinterprets as subcommands. The istiod (pilot) rock uses entrypoint-service
+           with argument forwarding so its args are kept.
+        """
+        # (resource kind, resource name) -> (container name, strip_args)
+        pebble_targets = {
+            ("Deployment", "istiod"): ("discovery", False),
+            ("DaemonSet", "ztunnel"): ("istio-proxy", True),
+        }
+        for resource in resources:
+            key = (resource.kind, resource.metadata.name)  # pyright: ignore
+            target = pebble_targets.get(key)  # pyright: ignore
+            if target is None:
+                continue
+            container_name, strip_args = target
+
+            spec = resource.spec.template.spec  # pyright: ignore
+            if spec.volumes is None:
+                spec.volumes = []
+            spec.volumes.append(Volume(name="pebble-state", emptyDir=EmptyDirVolumeSource()))
+            for container in spec.containers:
+                if container.name == container_name:
+                    if container.volumeMounts is None:
+                        container.volumeMounts = []
+                    container.volumeMounts.append(
+                        VolumeMount(name="pebble-state", mountPath="/run/pebble")
+                    )
+                    if container.env is None:
+                        container.env = []
+                    container.env.extend([
+                        EnvVar(name="PEBBLE", value="/run/pebble"),
+                        EnvVar(name="PEBBLE_COPY_ONCE", value="/var/lib/pebble/default"),
+                    ])
+                    if strip_args:
+                        container.args = None
+                    break
+        return resources
 
     def _add_metrics_labels(self, resources: List[AnyResource]) -> List[AnyResource]:
         """Append extra labels to the ztunnel, istio-cni-node, and istiod pods based on METRICS_LABELS."""
