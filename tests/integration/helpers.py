@@ -29,7 +29,7 @@ class CharmDeploymentConfiguration:
 
 
 istio_beacon_k8s = CharmDeploymentConfiguration(
-    entity_url="istio-beacon-k8s", application_name="istio-beacon-k8s", channel="2/edge", trust=True
+    entity_url="istio-beacon-k8s", application_name="istio-beacon-k8s", channel="dev/edge", trust=True
 )
 
 

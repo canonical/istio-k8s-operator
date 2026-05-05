@@ -12,4 +12,5 @@ jobs:
     uses: canonical/observability/.github/workflows/charm-release.yaml@v2
     secrets: inherit
     with:
+      provider: microk8s
       default-track: dev
