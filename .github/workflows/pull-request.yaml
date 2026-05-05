@@ -11,3 +11,5 @@ jobs:
     name: PR
     uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
     secrets: inherit
+    with:
+      provider: microk8s
