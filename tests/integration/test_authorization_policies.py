@@ -65,6 +65,20 @@ async def test_deploy_dependencies(ops_test: OpsTest, service_mesh_tester):
         resources=resources,
         trust=True,
     )
+
+    # let beacon and the testers settle on their default config before flipping
+    # model-on-mesh, so the config-changed for that doesn't race with install /
+    # first config-changed against a still-stabilising cluster.
+    await ops_test.model.wait_for_idle(
+        [
+            istio_beacon_k8s.application_name,
+            "sender",
+            "receiver",
+        ],
+        raise_on_error=False,
+        timeout=1000,
+    )
+
     # put the dependency charms on the mesh
     await ops_test.model.applications[istio_beacon_k8s.application_name].set_config({"model-on-mesh": "true"})
     await ops_test.model.wait_for_idle(
