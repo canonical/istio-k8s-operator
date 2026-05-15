@@ -715,7 +715,7 @@ version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", version = "4.13.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
-    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9' and python_full_version < '3.13'" },
+    { name = "typing-extensions", version = "4.15.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9' and python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/0b/9f/a65090624ecf468cdca03533906e7c69ed7588582240cfe7cc9e770b50eb/exceptiongroup-1.3.0.tar.gz", hash = "sha256:b241f5885f560bc56a59ee63ca4c6a8bfa46ae4ad651af316d4e81817bb9fd88", size = 29749, upload-time = "2025-05-10T17:42:51.123Z" }
 wheels = [
@@ -1021,7 +1021,7 @@ requires-dist = [
     { name = "cosl" },
     { name = "coverage", extras = ["toml"], marker = "extra == 'dev'" },
     { name = "juju", marker = "extra == 'dev'" },
-    { name = "lightkube-extensions", git = "https://github.com/canonical/lightkube-extensions.git?rev=main" },
+    { name = "lightkube-extensions", specifier = "~=1.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = "==1.21.0" },
     { name = "ops", specifier = "~=2.5" },
     { name = "ops", extras = ["testing"], marker = "extra == 'dev'" },
@@ -1155,11 +1155,16 @@ wheels = [
 
 [[package]]
 name = "lightkube-extensions"
-version = "0.0.1"
-source = { git = "https://github.com/canonical/lightkube-extensions.git?rev=main#f82588c9f9b981fef931cc06441fd8df6e162fee" }
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "charmed-service-mesh-helpers" },
     { name = "jinja2" },
     { name = "lightkube" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/04/a6/e85fceea9cb364d3940ec8db727d98879312a49688fda6dbc2ec06ce352c/lightkube_extensions-1.0.0.tar.gz", hash = "sha256:8f3f4a378a4422e6a9a6fd45ca30698760cacb97c2ddec0730f6a565bdfc7375", size = 18347, upload-time = "2026-05-14T10:48:07.214Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/65/51/0fe55efd0bd5e235bbbaf047498434b8171cc016ff8baaaf3c37c6585bf0/lightkube_extensions-1.0.0-py3-none-any.whl", hash = "sha256:4a7a809d0f242e186a5433565a021e7fc67f6b139901cb0c3f1b8e528cc6eb41", size = 19372, upload-time = "2026-05-14T10:48:08.292Z" },
 ]
 
 [[package]]
