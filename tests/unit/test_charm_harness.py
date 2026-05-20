@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import ops
 import ops.testing
 import pytest
-from lightkube_extensions.batch import KubernetesResourceManager
+from canonical_service_mesh.k8s.resource_manager import KubernetesResourceManager
 from ops.model import ActiveStatus
 
 from charm import IstioCoreCharm
