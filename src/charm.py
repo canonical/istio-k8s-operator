@@ -14,17 +14,21 @@ from urllib.parse import urlparse
 
 import ops
 import yaml
-from charmed_service_mesh_helpers.models import (
+from canonical_service_mesh.interfaces.istio_ingress_config import (
+    IngressConfigRequirer,
+)
+from canonical_service_mesh.k8s.resource_manager import (
+    KubernetesResourceManager,
+    create_charm_default_labels,
+)
+from canonical_service_mesh.models.istio import (
     AuthorizationPolicySpec,
     PolicyTargetReference,
 )
-from charms.certificate_transfer_interface.v1.certificate_transfer import (
+from charmlibs.interfaces.certificate_transfer import (
     CertificateTransferRequires,
 )
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
-from charms.istio_k8s.v0.istio_ingress_config import (
-    IngressConfigRequirer,
-)
 from charms.istio_k8s.v0.istio_metadata import IstioMetadataProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
@@ -55,7 +59,6 @@ from lightkube.resources.rbac_authorization_v1 import (
     Role,
     RoleBinding,
 )
-from lightkube_extensions.batch import KubernetesResourceManager, create_charm_default_labels
 from ops.pebble import ChangeError, Layer
 
 from config import CharmConfig

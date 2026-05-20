@@ -4,15 +4,15 @@
 [project]
 name = "istio-k8s"
 version = "0.0"
-requires-python = "~=3.8"
+requires-python = ">=3.10"
 
 dependencies = [
-    "charmed-service-mesh-helpers>=0.2.0",
+    "canonical-service-mesh>=0.0.2",
+    "charmlibs-interfaces-certificate_transfer",
     "ops~=2.5",
     "pydantic>=2",
     "cosl",
     "opentelemetry-exporter-otlp-proto-http==1.21.0",
-    "lightkube-extensions~=1.0",
 ]
 
 [project.optional-dependencies]
@@ -52,9 +52,9 @@ target-version = ["py38"]
 # Linting tools configuration
 [tool.ruff]
 line-length = 99
+extend-exclude = ["__pycache__", "*.egg_info", "tests/integration/testers/*/lib"]
 
 [tool.ruff.lint]
-exclude = ["__pycache__", "*.egg_info"]
 select = ["E", "W", "F", "C", "N", "R", "D", "I001"]
 extend-ignore = [
     "D203",
