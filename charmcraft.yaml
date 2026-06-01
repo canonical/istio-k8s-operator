@@ -93,7 +93,11 @@ parts:
     plugin: dump
     source: https://github.com/istio/istio/releases/download/1.24.0/istioctl-1.24.0-linux-amd64.tar.gz
     source-type: tar
-
+  icon:
+    plugin: dump
+    source: .
+    stage:
+      - icon.svg
 
 resources:
   metrics-proxy-image:
