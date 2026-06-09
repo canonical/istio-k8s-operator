@@ -72,19 +72,24 @@ containers:
 provides:
   grafana-dashboard:
     interface: grafana_dashboard
+    optional: true
   istio-metadata:
     interface: istio_metadata
+    optional: true
   metrics-endpoint:
     interface: prometheus_scrape
+    optional: true
 
 requires:
   charm-tracing:
     interface: tracing
+    optional: true
     limit: 1
     description: |
       Enables sending charm traces to a distributed tracing backend, such as Tempo.
   workload-tracing:
     interface: tracing
+    optional: true
     limit: 1
     description: |
       Enables sending workload traces from on-mesh workloads to a distributed tracing backend, such as Tempo.
@@ -95,6 +100,7 @@ requires:
       you can relate the beacon charm to a particular charm instead of applying --model-on-mesh=true to the entire model.
   istio-ingress-config:
     interface: istio_ingress_config
+    optional: true
     description: |
       Provides an interface for exchanging Istio ingress configuration,
       including external authorizer configuration details.
