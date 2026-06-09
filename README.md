@@ -8,7 +8,7 @@
 
 [Istio](https://istio.io) is an open source project that implements a service mesh, allowing for a way to observe and control the traffic flow between applications in Kubernetes.  Istio is a key tool in securing Kubernetess workloads and hardening your environment.
 
-The istio-core Charmed Operator deploys and manages the Istio control plane components in a Kubernetes cluster.  The operator is designed to be used in conjunction with the [istio-beacon-k8s](https://github.com/canonical/istio-beacon-k8s-operator) and [istio-ingress-k8s](https://github.com/canonical/istio-ingress-k8s-operator) charms to deploy and configure Istio using Juju.
+The istio-k8s Charmed Operator deploys and manages the Istio control plane components in a Kubernetes cluster.  The operator is designed to be used in conjunction with the [istio-beacon-k8s](https://github.com/canonical/istio-beacon-k8s-operator) and [istio-ingress-k8s](https://github.com/canonical/istio-ingress-k8s-operator) charms to deploy and configure Istio using Juju.
 
 ## Usage
 
