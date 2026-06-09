@@ -6,7 +6,7 @@ type: charm
 title: Istio
 summary: A Juju charm to operate an Istio service mesh
 description: |
-  istio-core deploys and manages the control plane of an Istio service mesh on Kubernetes, 
+  istio-k8s deploys and manages the control plane of an Istio service mesh on Kubernetes,
   enabling configuring and managing Istio through Juju.
 
 links:
