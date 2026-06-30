@@ -46,6 +46,8 @@ from lightkube.models.core_v1 import EmptyDirVolumeSource, EnvVar, Volume, Volum
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.admissionregistration_v1 import (
     MutatingWebhookConfiguration,
+    ValidatingAdmissionPolicy,
+    ValidatingAdmissionPolicyBinding,
     ValidatingWebhookConfiguration,
 )
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
@@ -90,7 +92,11 @@ ISTIO_CRDS_LABEL = "istio-crds"
 ISTIO_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml"]
 GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
-GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
+GATEWAY_API_CRDS_RESOURCE_TYPES = {
+    CustomResourceDefinition,
+    ValidatingAdmissionPolicy,
+    ValidatingAdmissionPolicyBinding,
+}
 
 # Rock image settings
 ROCK_REGISTRY = "docker.io/ubuntu"
