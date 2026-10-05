@@ -1,3 +1,8 @@
+> [!IMPORTANT]
+> Moved to https://github.com/canonical/service-mesh/tree/main/charms/istio-k8s.
+> This repo is no longer maintained.
+
+
 # Istio Service Mesh Charmed Operator
 
 [![CharmHub Badge](https://charmhub.io/istio-k8s/badge.svg)](https://charmhub.io/istio-k8s)
