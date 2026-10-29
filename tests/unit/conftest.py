@@ -19,14 +19,17 @@ def charm_tracing_buffer_to_tmp(tmp_path):
 
 @pytest.fixture()
 def istio_core_charm():
-    # TODO: Python 3.10 lets you have multiple context managers in a single with statement
-    with patch.object(IstioCoreCharm, "_reconcile_control_plane"):
-        with patch.object(IstioCoreCharm, "_reconcile_authorization_policies"):
-            with patch.object(IstioCoreCharm, "_reconcile_istio_crds"):
-                with patch.object(IstioCoreCharm, "_reconcile_gateway_api_crds"):
-                    with patch.object(IstioCoreCharm, "_setup_proxy_pebble_service"):
-                        with patch.object(IstioCoreCharm, "_set_istio_version"):
-                            yield IstioCoreCharm
+    with (
+        patch.object(IstioCoreCharm, "_reconcile_control_plane"),
+        patch.object(IstioCoreCharm, "_reconcile_authorization_policies"),
+        patch.object(IstioCoreCharm, "_reconcile_istio_crds"),
+        patch.object(IstioCoreCharm, "_reconcile_gateway_api_crds"),
+        patch.object(IstioCoreCharm, "_setup_proxy_pebble_service"),
+        patch.object(IstioCoreCharm, "_set_istio_version"),
+        patch.object(IstioCoreCharm, "_claim_cni_ownership", return_value=True),
+        patch.object(IstioCoreCharm, "_get_cni_ownership_status", return_value=None),
+    ):
+        yield IstioCoreCharm
 
 
 @pytest.fixture()
